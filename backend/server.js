@@ -129,16 +129,7 @@ app.use("/api/auth",  require("./routes/auth"));
 app.use("/api/admin", require("./routes/admin"));
 app.use("/api",       require("./routes/kits"));
 
-// ── Serve React build in production ──────────────────────────
-if (isProd) {
-  const distPath = path.join(__dirname, "../frontend/dist");
-  app.use(express.static(distPath));
 
-  // All other routes → React app
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(distPath, "index.html"));
-  });
-}
 
 // ── Global error handler ──────────────────────────────────────
 app.use((err, req, res, next) => {
