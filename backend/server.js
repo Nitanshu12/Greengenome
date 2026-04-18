@@ -39,6 +39,10 @@ mongoose.connect(MONGO_URI)
   });
 
 // ── CORS allow-list (Vercel + Render, etc.) ───────────────────
+// Why CORS fails: in production, if this list is empty the cors package uses
+// origin:false and skips all CORS headers — the browser then blocks cross-origin
+// requests from your Vercel UI with "No Access-Control-Allow-Origin".
+// Set FRONTEND_URL or ALLOWED_ORIGINS on Render, or rely on the prod default below.
 function parseAllowedOrigins() {
   const fromList = (process.env.ALLOWED_ORIGINS || "")
     .split(",")
@@ -47,6 +51,10 @@ function parseAllowedOrigins() {
   const single = (process.env.FRONTEND_URL || "").trim().replace(/\/$/, "");
   const merged = [...fromList];
   if (single && !merged.includes(single)) merged.push(single);
+  const noDefault = process.env.CORS_DISABLE_DEFAULT === "1";
+  if (isProd && merged.length === 0 && !noDefault) {
+    merged.push("https://greengenome.vercel.app");
+  }
   return merged;
 }
 
@@ -91,7 +99,7 @@ const sessionCookieSecure =
       : isProd;
 
 // Session — stored in MongoDB so it survives restarts
-app.use(session({
+const sessionMw = session({
   secret: process.env.SESSION_SECRET || "change-me-in-production",
   resave: false,
   saveUninitialized: false,
@@ -103,7 +111,13 @@ app.use(session({
     sameSite: sessionSameSite,
     maxAge: 1000 * 60 * 60 * 24 * 7  // 7 days
   }
-}));
+});
+
+// Skip session on OPTIONS so preflight never hits Mongo/session (avoids 500s without CORS headers)
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") return next();
+  sessionMw(req, res, next);
+});
 
 // Health check (Render / load balancers)
 app.get("/health", (req, res) => {
@@ -134,4 +148,7 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server listening on port ${PORT}`);
+  console.log(
+    `   CORS allowed origins: ${allowedOrigins.length ? allowedOrigins.join(", ") : "(none — dev localhost only)"}`
+  );
 });
