@@ -9,3 +9,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Required when the UI is on Vercel (or any host other than this API):
+      - key: FRONTEND_URL
+        value: https://greengenome.vercel.app

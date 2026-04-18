@@ -38,35 +38,50 @@ mongoose.connect(MONGO_URI)
     process.exit(1);
   });
 
-// ── Middleware ────────────────────────────────────────────────
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ── CORS allow-list (Vercel + Render, etc.) ───────────────────
+function parseAllowedOrigins() {
+  const fromList = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((s) => s.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+  const single = (process.env.FRONTEND_URL || "").trim().replace(/\/$/, "");
+  const merged = [...fromList];
+  if (single && !merged.includes(single)) merged.push(single);
+  return merged;
+}
 
-// CORS — dev: Vite; prod: same-origin by default, or ALLOWED_ORIGINS if frontend is elsewhere
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+const allowedOrigins = parseAllowedOrigins();
+const crossOriginFrontend = allowedOrigins.length > 0;
+const devLocalOrigins = ["http://localhost:5173", "http://localhost:3000"];
 
 const corsOrigin =
-  isProd && allowedOrigins.length > 0
+  crossOriginFrontend
     ? (origin, cb) => {
         if (!origin) return cb(null, true);
         if (allowedOrigins.includes(origin)) return cb(null, true);
+        if (!isProd && devLocalOrigins.includes(origin)) return cb(null, true);
         return cb(null, false);
       }
     : isProd
       ? false
-      : ["http://localhost:5173", "http://localhost:3000"];
+      : devLocalOrigins;
 
+// CORS must run before body parsers so OPTIONS preflight is answered correctly
 app.use(cors({ origin: corsOrigin, credentials: true }));
 
+// ── Middleware ────────────────────────────────────────────────
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+const sessionSameSiteEnv = (process.env.SESSION_COOKIE_SAMESITE || "").toLowerCase();
 const sessionSameSite =
-  process.env.SESSION_COOKIE_SAMESITE === "none"
+  sessionSameSiteEnv === "none"
     ? "none"
-    : process.env.SESSION_COOKIE_SAMESITE === "strict"
+    : sessionSameSiteEnv === "strict"
       ? "strict"
-      : "lax";
+      : crossOriginFrontend && isProd
+        ? "none"
+        : "lax";
 
 const sessionCookieSecure =
   sessionSameSite === "none"
