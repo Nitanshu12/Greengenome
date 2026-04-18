@@ -1,5 +1,8 @@
 // Central API helper — all fetch calls go through here
-const BASE = "/api";
+// Production on same host: leave VITE_API_BASE_URL unset (relative /api).
+// Split deploy (e.g. Vercel + Render): set VITE_API_BASE_URL=https://your-api.onrender.com
+const API_ROOT = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const BASE = `${API_ROOT}/api`;
 
 async function request(method, path, body, isFormData = false) {
   const opts = {

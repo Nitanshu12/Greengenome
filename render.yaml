@@ -1,0 +1,11 @@
+# Render Blueprint — add MONGO_URI and SESSION_SECRET in the dashboard (secrets).
+services:
+  - type: web
+    runtime: node
+    name: greengenome
+    buildCommand: cd backend && npm install && cd ../frontend && npm install && npm run build
+    startCommand: cd backend && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
