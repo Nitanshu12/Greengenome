@@ -140,7 +140,6 @@ export default function Packages() {
               <table>
                 <thead>
                   <tr>
-                    <th>#</th>
                     <th>Cube</th>
                     <th>Box</th>
                     <th>Items</th>
@@ -156,7 +155,6 @@ export default function Packages() {
                 <tbody>
                   {filtered.map((r, i) => (
                     <tr key={i}>
-                      <td style={{ color: "var(--muted)" }}>{r.rowNo ?? i + 1}</td>
                       <td>{r.cube}</td>
                       <td>{r.box}</td>
                       <td>{r.items}</td>
