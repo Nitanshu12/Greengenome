@@ -24,12 +24,22 @@ export default function Packages() {
   // Load rows when kit changes
   useEffect(() => {
     if (!selectedKit) return;
+    let active = true;
     setLoading(true);
     setSearch("");
     api.getKitData(selectedKit)
-      .then(d => setRows(d.data))
-      .catch(e => toast(e.message, "error"))
-      .finally(() => setLoading(false));
+      .then(d => {
+        if (active) setRows(d.data ?? []);
+      })
+      .catch(e => {
+        if (active) toast(e.message, "error");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [selectedKit]);
 
   const handleDownload = async () => {
