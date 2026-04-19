@@ -48,7 +48,15 @@ router.get("/kits/:kitName/data", requireLogin, async (req, res) => {
   try {
     const kitName = decodeURIComponent(req.params.kitName);
     const kitFile = await KitFile.findOne({ kitName });
-    if (!kitFile || !kitFile.storedFile) {
+    if (!kitFile) {
+      return res.json({ data: [] });
+    }
+
+    if (kitFile.data && kitFile.data.length > 0) {
+      return res.json({ data: kitFile.data });
+    }
+
+    if (!kitFile.storedFile) {
       return res.json({ data: [] });
     }
     const filePath = path.join(uploadsDir, kitFile.storedFile);
@@ -130,15 +138,20 @@ router.get("/kits/:kitName/download", requireLogin, async (req, res) => {
   try {
     const kitName = decodeURIComponent(req.params.kitName);
     const kitFile = await KitFile.findOne({ kitName });
-    if (!kitFile || !kitFile.storedFile) {
+    if (!kitFile) {
       return res.status(404).json({ error: "No data found for this kit" });
     }
-    const filePath = path.join(uploadsDir, kitFile.storedFile);
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: "File missing on server" });
+
+    let data = [];
+    if (kitFile.data && kitFile.data.length > 0) {
+      data = kitFile.data;
+    } else if (kitFile.storedFile) {
+      const filePath = path.join(uploadsDir, kitFile.storedFile);
+      if (fs.existsSync(filePath)) {
+        data = loadKitDataFromFile(filePath);
+      }
     }
 
-    const data = loadKitDataFromFile(filePath);
     if (!data.length) return res.status(404).json({ error: "No data found for this kit" });
 
     const rows = data.map(p => ({
@@ -182,7 +195,9 @@ router.get("/kits/:kitName/download-original", requireLogin, async (req, res) =>
     if (!kitFile) return res.status(404).json({ error: "Original file not found" });
 
     const filePath = path.join(uploadsDir, kitFile.storedFile);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File missing on server" });
+    if (!fs.existsSync(filePath)) {
+      return res.redirect(`/api/kits/${encodeURIComponent(kitName)}/download`);
+    }
 
     res.download(filePath, kitFile.originalFile);
   } catch (err) {

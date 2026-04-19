@@ -13,7 +13,8 @@ const KitFileSchema = new mongoose.Schema({
     brandCounts: { type: mongoose.Schema.Types.Mixed, default: {} },
     expired:     { type: Number, default: 0 },
     warning:     { type: Number, default: 0 }
-  }
+  },
+  data: { type: [mongoose.Schema.Types.Mixed], default: [] }
 });
 
 module.exports = {

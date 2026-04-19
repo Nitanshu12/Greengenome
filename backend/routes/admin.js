@@ -73,7 +73,8 @@ router.post(
           brandCounts: summaryStats.brandCounts,
           expired: summaryStats.expired,
           warning: summaryStats.warning
-        }
+        },
+        data: mapped
       });
 
       res.json({ msg: `Uploaded ${rawRows.length} rows for kit "${kitName}"`, rows: rawRows.length });
