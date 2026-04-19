@@ -140,7 +140,7 @@ export default function Packages() {
       {/* ── Page header ── */}
       <div className="page-header">
         <div>
-          <div className="page-title">Packages</div>
+          <div className="page-title">Disaster Preparedness Platform</div>
           <div className="page-sub">
             {loadingRows
               ? "Loading data…"
