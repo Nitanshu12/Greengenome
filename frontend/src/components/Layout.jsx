@@ -1,4 +1,5 @@
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 
 const NAV = [
@@ -14,7 +15,41 @@ const ADMIN_NAV = [
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const isAdmin = ["admin", "superadmin"].includes(user?.role);
+  const [navOpen, setNavOpen] = useState(false);
+
+  useEffect(() => {
+    setNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 769px)");
+    const onChange = () => {
+      if (mq.matches) setNavOpen(false);
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setNavOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navOpen]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    if (!navOpen || !mq.matches) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [navOpen]);
 
   const handleLogout = async () => {
     await logout();
@@ -25,7 +60,21 @@ export default function Layout() {
     <div className="app-shell">
       {/* ── Topbar ── */}
       <header className="topbar">
-        <div className="topbar-logo">dash<span>.</span>kit</div>
+        <div className="topbar-left">
+          <button
+            type="button"
+            className="menu-toggle"
+            aria-expanded={navOpen}
+            aria-controls="app-sidebar"
+            onClick={() => setNavOpen((o) => !o)}
+          >
+            <span className="menu-toggle-icon" aria-hidden>
+              {navOpen ? "✕" : "☰"}
+            </span>
+            <span className="sr-only">{navOpen ? "Close menu" : "Open menu"}</span>
+          </button>
+          <div className="topbar-logo">dash<span>.</span>kit</div>
+        </div>
         <div className="topbar-right">
           <span style={{ color: "var(--muted)", fontSize: 12 }}>{user?.username}</span>
           <span className={`badge-role ${user?.role}`}>{user?.role}</span>
@@ -34,13 +83,25 @@ export default function Layout() {
       </header>
 
       {/* ── Sidebar ── */}
-      <aside className="sidebar">
+      <aside id="app-sidebar" className={"sidebar" + (navOpen ? " is-open" : "")}>
+        <div className="sidebar-mobile-bar">
+          <span className="sidebar-mobile-title">Menu</span>
+          <button
+            type="button"
+            className="sidebar-close"
+            aria-label="Close menu"
+            onClick={() => setNavOpen(false)}
+          >
+            ✕
+          </button>
+        </div>
         <div className="sidebar-section">Menu</div>
         {NAV.map(n => (
           <NavLink
             key={n.to}
             to={n.to}
             className={({ isActive }) => "sidebar-link" + (isActive ? " active" : "")}
+            onClick={() => setNavOpen(false)}
           >
             <span className="sidebar-icon">{n.icon}</span>
             {n.label}
@@ -55,6 +116,7 @@ export default function Layout() {
                 key={n.to}
                 to={n.to}
                 className={({ isActive }) => "sidebar-link" + (isActive ? " active" : "")}
+                onClick={() => setNavOpen(false)}
               >
                 <span className="sidebar-icon">{n.icon}</span>
                 {n.label}
@@ -66,6 +128,14 @@ export default function Layout() {
 
       {/* ── Page content ── */}
       <main className="main-content">
+        {navOpen && (
+          <button
+            type="button"
+            className="nav-backdrop"
+            aria-label="Close menu"
+            onClick={() => setNavOpen(false)}
+          />
+        )}
         <Outlet />
       </main>
     </div>
