@@ -4,7 +4,8 @@ const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
 const User = require("../models/User");
-const { KitItem, KitFile } = require("../models/Kit");
+const { KitFile } = require("../models/Kit");
+const { sheetJsonToKitData, summarizeKitData } = require("../utils/kitExcel");
 const { requireLogin, requireRole } = require("../middleware/auth");
 
 // ── Multer setup ──────────────────────────────────────────────
@@ -30,30 +31,6 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 } // 20MB
 });
 
-// ── Helper: normalize header names ───────────────────────────
-function colVal(row, ...keys) {
-  for (const k of keys) {
-    const found = Object.keys(row).find(
-      h => h.trim().toUpperCase() === k.toUpperCase()
-    );
-    if (found && row[found] !== null && row[found] !== undefined) {
-      return String(row[found]).trim();
-    }
-  }
-  return "";
-}
-
-function parseDate(val) {
-  if (!val) return "";
-  try {
-    const d = new Date(val);
-    if (isNaN(d.getTime())) return String(val);
-    return d.toISOString().split("T")[0];
-  } catch {
-    return String(val);
-  }
-}
-
 // ════════════════════════════════════════════════════════════
 // EXCEL UPLOAD
 // POST /api/admin/upload-excel
@@ -69,47 +46,37 @@ router.post(
       if (!kitName) return res.status(400).json({ error: "Kit name required" });
       if (!req.file) return res.status(400).json({ error: "File required" });
 
-      // Parse Excel
       const wb = XLSX.readFile(req.file.path);
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+      const rawRows = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
-      if (!rows.length) return res.status(400).json({ error: "Excel file is empty" });
+      if (!rawRows.length) return res.status(400).json({ error: "Excel file is empty" });
 
-      // Delete old data for this kit
-      await KitItem.deleteMany({ kitName });
+      const prev = await KitFile.findOne({ kitName });
+      if (prev && prev.storedFile) {
+        const oldPath = path.join(__dirname, "../uploads", prev.storedFile);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+
       await KitFile.deleteOne({ kitName });
 
-      // Insert new rows
-      const items = rows.map((row, i) => ({
-        kitName,
-        rowNo: i + 1,
-        cube:     colVal(row, "CUBE"),
-        box:      colVal(row, "BOX"),
-        items:    colVal(row, "ITEMS"),
-        brand:    colVal(row, "BRAND"),
-        oem:      colVal(row, "OEM"),
-        itemType: colVal(row, "TYPE", "ITEM TYPE"),
-        expiry:   parseDate(colVal(row, "EXPIRY")),
-        batchNo:  colVal(row, "BATCH", "BATCH NO"),
-        document: colVal(row, "DOC", "DOCUMENT"),
-        link:     colVal(row, "LINK"),
-        uploadedBy: req.session.user.id
-      }));
+      const mapped = sheetJsonToKitData(rawRows);
+      const summaryStats = summarizeKitData(mapped);
 
-      await KitItem.insertMany(items);
-
-      // Track the file record
       await KitFile.create({
         kitName,
         originalFile: req.file.originalname,
         storedFile: req.file.filename,
-        rowCount: rows.length,
-        uploadedBy: req.session.user.id
+        rowCount: rawRows.length,
+        uploadedBy: req.session.user.id,
+        summaryStats: {
+          brandCounts: summaryStats.brandCounts,
+          expired: summaryStats.expired,
+          warning: summaryStats.warning
+        }
       });
 
-      res.json({ msg: `Uploaded ${rows.length} rows for kit "${kitName}"`, rows: rows.length });
-
+      res.json({ msg: `Uploaded ${rawRows.length} rows for kit "${kitName}"`, rows: rawRows.length });
     } catch (err) {
       console.error("Upload error:", err);
       res.status(500).json({ error: err.message });
@@ -140,13 +107,10 @@ router.delete("/kits/:kitName", requireLogin, requireRole("admin", "superadmin")
 
     const kitFile = await KitFile.findOneAndDelete({ kitName });
 
-    // Delete physical file
     if (kitFile && kitFile.storedFile) {
       const filePath = path.join(__dirname, "../uploads", kitFile.storedFile);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
-
-    await KitItem.deleteMany({ kitName });
 
     res.json({ msg: `Kit "${kitName}" deleted` });
   } catch (err) {

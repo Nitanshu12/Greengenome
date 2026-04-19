@@ -1,34 +1,21 @@
 const mongoose = require("mongoose");
 
-// Each row from an uploaded Excel becomes one KitItem
-// const KitItemSchema = new mongoose.Schema({
-//   kitName:  { type: String, required: true, index: true },
-//   rowNo:    { type: Number },
-//   cube:     String,
-//   box:      String,
-//   items:    String,
-//   brand:    String,
-//   oem:      String,
-//   itemType: String,
-//   expiry:   String,
-//   batchNo:  String,
-//   document: String,
-//   link:     String,
-//   uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-//   createdAt: { type: Date, default: Date.now }
-// });
-
-// Each uploaded Excel file is tracked here
+// One document per uploaded kit: file on disk + compact stats (no per-row documents)
 const KitFileSchema = new mongoose.Schema({
   kitName:      { type: String, required: true, unique: true },
-  originalFile: String,       // original filename
-  storedFile:   String,       // filename on disk in /uploads
+  originalFile: String,
+  storedFile:   String,
   rowCount:     Number,
   uploadedBy:   { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  createdAt:    { type: Date, default: Date.now }
+  createdAt:    { type: Date, default: Date.now },
+  // Filled on upload — keeps dashboard fast without 1500+ Mongo documents per file
+  summaryStats: {
+    brandCounts: { type: mongoose.Schema.Types.Mixed, default: {} },
+    expired:     { type: Number, default: 0 },
+    warning:     { type: Number, default: 0 }
+  }
 });
 
 module.exports = {
-  // KitItem: mongoose.model("KitItem", KitItemSchema),
   KitFile: mongoose.model("KitFile", KitFileSchema)
 };

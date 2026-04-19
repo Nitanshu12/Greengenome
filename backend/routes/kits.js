@@ -2,8 +2,30 @@ const router = require("express").Router();
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-const { KitItem, KitFile } = require("../models/Kit");
+const { KitFile } = require("../models/Kit");
+const { loadKitDataFromFile, summarizeKitData } = require("../utils/kitExcel");
 const { requireLogin } = require("../middleware/auth");
+
+const uploadsDir = path.join(__dirname, "../uploads");
+
+/** Legacy KitFile docs may lack summaryStats — derive from the stored Excel once per request. */
+function effectiveSummaryStats(kitLean) {
+  const s = kitLean.summaryStats;
+  if (
+    s &&
+    typeof s.expired === "number" &&
+    typeof s.warning === "number" &&
+    s.brandCounts &&
+    typeof s.brandCounts === "object"
+  ) {
+    return s;
+  }
+  if (!kitLean.storedFile) return { brandCounts: {}, expired: 0, warning: 0 };
+  const filePath = path.join(uploadsDir, kitLean.storedFile);
+  if (!fs.existsSync(filePath)) return { brandCounts: {}, expired: 0, warning: 0 };
+  const rows = loadKitDataFromFile(filePath);
+  return summarizeKitData(rows);
+}
 
 // ════════════════════════════════════════════════════════════
 // GET all kit names (for sidebar/dropdown)
@@ -11,7 +33,7 @@ const { requireLogin } = require("../middleware/auth");
 // ════════════════════════════════════════════════════════════
 router.get("/kits", requireLogin, async (req, res) => {
   try {
-    const kits = await KitItem.distinct("kitName");
+    const kits = await KitFile.distinct("kitName");
     res.json({ kits: kits.sort() });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -25,7 +47,15 @@ router.get("/kits", requireLogin, async (req, res) => {
 router.get("/kits/:kitName/data", requireLogin, async (req, res) => {
   try {
     const kitName = decodeURIComponent(req.params.kitName);
-    const data = await KitItem.find({ kitName }).sort({ rowNo: 1 }).lean();
+    const kitFile = await KitFile.findOne({ kitName });
+    if (!kitFile || !kitFile.storedFile) {
+      return res.json({ data: [] });
+    }
+    const filePath = path.join(uploadsDir, kitFile.storedFile);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File missing on server" });
+    }
+    const data = loadKitDataFromFile(filePath);
     res.json({ data });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -38,46 +68,39 @@ router.get("/kits/:kitName/data", requireLogin, async (req, res) => {
 // ════════════════════════════════════════════════════════════
 router.get("/dashboard", requireLogin, async (req, res) => {
   try {
-    // Count kits
-    const kits = await KitItem.distinct("kitName");
+    const files = await KitFile.find().lean();
 
-    // Items per kit
-    const itemsPerKit = await KitItem.aggregate([
-      { $group: { _id: "$kitName", count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
+    const kits = files.length;
+    const totalItems = files.reduce((s, f) => s + (f.rowCount || 0), 0);
+    const totalFiles = files.length;
 
-    // Brand distribution
-    const brandDist = await KitItem.aggregate([
-      { $match: { brand: { $ne: "" } } },
-      { $group: { _id: "$brand", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 10 }
-    ]);
+    const sortedByCount = [...files].sort(
+      (a, b) => (b.rowCount || 0) - (a.rowCount || 0)
+    );
+    const itemsPerKit = sortedByCount.map(f => ({
+      _id: f.kitName,
+      count: f.rowCount || 0
+    }));
 
-    // Expiry alerts
-    const today = new Date();
-    const in30 = new Date();
-    in30.setDate(today.getDate() + 30);
-
-    const allItems = await KitItem.find({ expiry: { $ne: "" } }).lean();
-    let expired = 0, warning = 0;
-    for (const item of allItems) {
-      try {
-        const d = new Date(item.expiry);
-        if (isNaN(d.getTime())) continue;
-        if (d < today) expired++;
-        else if (d <= in30) warning++;
-      } catch {}
+    const mergedBrands = {};
+    let expired = 0;
+    let warning = 0;
+    for (const f of files) {
+      const stats = effectiveSummaryStats(f);
+      const bc = stats.brandCounts || {};
+      for (const [brand, c] of Object.entries(bc)) {
+        mergedBrands[brand] = (mergedBrands[brand] || 0) + c;
+      }
+      expired += stats.expired || 0;
+      warning += stats.warning || 0;
     }
-
-    // Total counts
-    const totalItems = await KitItem.countDocuments();
-    const totalFiles = await KitFile.countDocuments();
+    const brandEntries = Object.entries(mergedBrands)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
 
     res.json({
       summary: {
-        kits: kits.length,
+        kits,
         totalItems,
         totalFiles,
         expired,
@@ -89,8 +112,8 @@ router.get("/dashboard", requireLogin, async (req, res) => {
           values: itemsPerKit.map(k => k.count)
         },
         brandDist: {
-          labels: brandDist.map(b => b._id),
-          values: brandDist.map(b => b.count)
+          labels: brandEntries.map(e => e[0]),
+          values: brandEntries.map(e => e[1])
         }
       }
     });
@@ -106,8 +129,16 @@ router.get("/dashboard", requireLogin, async (req, res) => {
 router.get("/kits/:kitName/download", requireLogin, async (req, res) => {
   try {
     const kitName = decodeURIComponent(req.params.kitName);
-    const data = await KitItem.find({ kitName }).sort({ rowNo: 1 }).lean();
+    const kitFile = await KitFile.findOne({ kitName });
+    if (!kitFile || !kitFile.storedFile) {
+      return res.status(404).json({ error: "No data found for this kit" });
+    }
+    const filePath = path.join(uploadsDir, kitFile.storedFile);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File missing on server" });
+    }
 
+    const data = loadKitDataFromFile(filePath);
     if (!data.length) return res.status(404).json({ error: "No data found for this kit" });
 
     const rows = data.map(p => ({
@@ -133,7 +164,6 @@ router.get("/kits/:kitName/download", requireLogin, async (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="${safeName}.xlsx"`);
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.send(buffer);
-
   } catch (err) {
     console.error("Download error:", err);
     res.status(500).json({ error: err.message });
@@ -151,7 +181,7 @@ router.get("/kits/:kitName/download-original", requireLogin, async (req, res) =>
 
     if (!kitFile) return res.status(404).json({ error: "Original file not found" });
 
-    const filePath = path.join(__dirname, "../uploads", kitFile.storedFile);
+    const filePath = path.join(uploadsDir, kitFile.storedFile);
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File missing on server" });
 
     res.download(filePath, kitFile.originalFile);
