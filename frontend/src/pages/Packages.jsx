@@ -90,20 +90,49 @@ export default function Packages() {
   );
 
   // ── Expiry helpers ───────────────────────────────────────────
+  const parseExpiryDate = (expiry) => {
+    if (!expiry) return null;
+    
+    if (!isNaN(expiry) && Number(expiry) > 10000) {
+      const d = new Date(1899, 11, 30);
+      d.setDate(d.getDate() + Number(expiry));
+      return d;
+    }
+
+    let d = new Date(expiry);
+    if (isNaN(d.getTime())) return null;
+    
+    if (d.getFullYear() > 9999) {
+      const excelSerial = d.getFullYear();
+      d = new Date(1899, 11, 30);
+      d.setDate(d.getDate() + excelSerial);
+    }
+    return d;
+  };
+
   const isExpired = (expiry) => {
-    if (!expiry) return false;
-    try { return new Date(expiry) < new Date(); } catch { return false; }
+    const d = parseExpiryDate(expiry);
+    if (!d) return false;
+    return d < new Date();
   };
 
   const isWarning = (expiry) => {
-    if (!expiry) return false;
-    try {
-      const d   = new Date(expiry);
-      const now = new Date();
-      const in30 = new Date();
-      in30.setDate(now.getDate() + 30);
-      return d >= now && d <= in30;
-    } catch { return false; }
+    const d = parseExpiryDate(expiry);
+    if (!d) return false;
+    const now = new Date();
+    const in30 = new Date();
+    in30.setDate(now.getDate() + 30);
+    return d >= now && d <= in30;
+  };
+
+  const formatExpiry = (expiry) => {
+    const d = parseExpiryDate(expiry);
+    if (!d) return expiry || "—";
+    
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${dd}-${mm}-${yy}`;
   };
 
   // ── Full page loader (first visit) ──────────────────────────
@@ -263,7 +292,7 @@ export default function Packages() {
                                 ? "tag-amber"
                                 : "tag-green"
                           }`}>
-                            {r.expiry}
+                            {formatExpiry(r.expiry)}
                           </span>
                         ) : "—"}
                       </td>
