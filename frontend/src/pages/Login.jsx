@@ -3,6 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import "../styles/login.css";
 
+// Import images as modules for production-safe loading
+import img1 from "../../static/images/img1.png";
+import img6 from "../../static/images/img6.png";
+import img5 from "../../static/images/img5.png";
+
 export default function Login() {
   const { login }   = useAuth();
   const navigate    = useNavigate();
@@ -13,9 +18,9 @@ export default function Login() {
   const timerRef = useRef(null);
 
   const slides = [
-    "/static/images/img1.png",
-    "/static/images/img6.png",
-    "/static/images/img5.png"
+    img1,
+    img6,
+    img5
   ];
 
   useEffect(() => {
