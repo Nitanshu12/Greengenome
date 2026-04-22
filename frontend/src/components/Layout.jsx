@@ -72,7 +72,7 @@ export default function Layout() {
 
         <div className="topbar-right">
           <span className="user-name">👤 {user?.username}</span>
-          <span className={`badge-role ${user?.role}`}>{user?.role}</span>
+          {/* <span className={`badge-role ${user?.role}`}>{user?.role}</span> */}
           <button className="btn-logout" onClick={handleLogout}>⍈</button>
         </div>
       </header>
