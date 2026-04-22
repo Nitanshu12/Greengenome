@@ -275,12 +275,12 @@ export default function Packages() {
                       {/* <td style={{ color: "var(--muted)", textAlign: "right" }}>
                         {r.rowNo ?? i + 1}
                       </td> */}
-                      <td>{r.cube || "—"}</td>
-                      <td>{r.box || "—"}</td>
-                      <td>{r.items || "—"}</td>
-                      <td>{r.brand || "—"}</td>
-                      <td>{r.oem || "—"}</td>
-                      <td>{r.itemType || "—"}</td>
+                      <td>{r.cube || "NA"}</td>
+                      <td>{r.box || "NA"}</td>
+                      <td>{r.items || "NA"}</td>
+                      <td>{r.brand || "NA"}</td>
+                      <td>{r.oem || "NA"}</td>
+                      <td>{r.itemType || "NA"}</td>
 
                       {/* Expiry with colour tag */}
                       <td>
@@ -294,17 +294,17 @@ export default function Packages() {
                           }`}>
                             {formatExpiry(r.expiry)}
                           </span>
-                        ) : "—"}
+                        ) : "NA"}
                       </td>
 
-                      <td>{r.batchNo || "—"}</td>
-                      <td>{r.document || "—"}</td>
+                      <td>{r.batchNo || "NA"}</td>
+                      <td>{r.document || "NA"}</td>
 
                       {/* Link */}
                       <td className="td-link">
                         {r.link
                           ? <a href={r.link} target="_blank" rel="noreferrer">↗ Open</a>
-                          : "—"}
+                          : "NA"}
                       </td>
                     </tr>
                   ))}
