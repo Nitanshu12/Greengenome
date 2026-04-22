@@ -12,8 +12,8 @@
   --green:     #16a34a;
   --red:       #ef4444;
   --amber:     #f59e0b;
-  --font-head: "Inter", "Syne", sans-serif;
-  --font-mono: "Inter", "DM Mono", sans-serif;
+  --font-head: 'Inter', "Segoe UI", sans-serif;
+  --font-mono: 'Inter', "Segoe UI", sans-serif;
   --radius:    8px;
   --radius-lg: 14px;
   --shadow:    0 4px 24px rgba(0,0,0,.08);
