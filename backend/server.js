@@ -42,6 +42,15 @@ app.use(cors({
   credentials: true
 }));  
 
+app.use((req, res, next) => {
+    if (req.url === '/' || req.url.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    next();
+});
+
 
 function parseAllowedOrigins() {
   const fromList = (process.env.ALLOWED_ORIGINS || "")
