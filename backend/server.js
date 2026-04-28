@@ -37,12 +37,12 @@ mongoose.connect(MONGO_URI)
     console.error("❌ MongoDB connection failed:", err.message);
     process.exit(1);
   });
+app.use(cors({
+  origin: "https://infoboard.greengenome.in",
+  credentials: true
+}));  
 
-// ── CORS allow-list (Vercel + Render, etc.) ───────────────────
-// Why CORS fails: in production, if this list is empty the cors package uses
-// origin:false and skips all CORS headers — the browser then blocks cross-origin
-// requests from your Vercel UI with "No Access-Control-Allow-Origin".
-// Set FRONTEND_URL or ALLOWED_ORIGINS on Render, or rely on the prod default below.
+
 function parseAllowedOrigins() {
   const fromList = (process.env.ALLOWED_ORIGINS || "")
     .split(",")
@@ -53,7 +53,7 @@ function parseAllowedOrigins() {
   if (single && !merged.includes(single)) merged.push(single);
   const noDefault = process.env.CORS_DISABLE_DEFAULT === "1";
   if (isProd && merged.length === 0 && !noDefault) {
-    merged.push("https://greengenome.vercel.app");
+    merged.push("https://infoboard.greengenome.in");
   }
   return merged;
 }
