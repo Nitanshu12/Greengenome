@@ -5,13 +5,13 @@ import { useToast } from "../components/Toast";
 export default function Packages() {
   const { toast } = useToast();
 
-  const [kits, setKits]               = useState([]);
+  const [kits, setKits] = useState([]);
   const [selectedKit, setSelectedKit] = useState(null);
-  const [rows, setRows]               = useState([]);
+  const [rows, setRows] = useState([]);
   const [loadingKits, setLoadingKits] = useState(true);
   const [loadingRows, setLoadingRows] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [search, setSearch]           = useState("");
+  const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const ROWS_PER_PAGE = 20;
 
@@ -93,17 +93,17 @@ export default function Packages() {
   );
 
   // ── Pagination ───────────────────────────────────────────────
-  const totalPages  = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE));
-  const safePage    = Math.min(currentPage, totalPages);
-  const pageStart   = (safePage - 1) * ROWS_PER_PAGE;
-  const paginated   = filtered.slice(pageStart, pageStart + ROWS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * ROWS_PER_PAGE;
+  const paginated = filtered.slice(pageStart, pageStart + ROWS_PER_PAGE);
 
   const goToPage = (p) => setCurrentPage(Math.max(1, Math.min(p, totalPages)));
 
   // ── Expiry helpers ───────────────────────────────────────────
   const parseExpiryDate = (expiry) => {
     if (!expiry) return null;
-    
+
     if (!isNaN(expiry) && Number(expiry) > 10000) {
       const d = new Date(1899, 11, 30);
       d.setDate(d.getDate() + Number(expiry));
@@ -112,7 +112,7 @@ export default function Packages() {
 
     let d = new Date(expiry);
     if (isNaN(d.getTime())) return null;
-    
+
     if (d.getFullYear() > 9999) {
       const excelSerial = d.getFullYear();
       d = new Date(1899, 11, 30);
@@ -139,7 +139,7 @@ export default function Packages() {
   const formatExpiry = (expiry) => {
     const d = parseExpiryDate(expiry);
     if (!d) return expiry || "—";
-    
+
     // const dd = String(d.getDate()).padStart(2, "0");
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const yy = String(d.getFullYear()).slice(-2);
@@ -238,14 +238,14 @@ export default function Packages() {
           </p>
         </div>
 
-      /* ── Empty kit ── */
+        /* ── Empty kit ── */
       ) : rows.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📄</div>
           <p>No data found for <strong>{selectedKit}</strong></p>
         </div>
 
-      /* ── Table ── */
+        /* ── Table ── */
       ) : (
         <>
           {/* No search results */}
@@ -269,7 +269,6 @@ export default function Packages() {
                 <table>
                   <thead>
                     <tr>
-                      <th>#</th>
                       <th>Cube</th>
                       <th>Box</th>
                       <th>Items</th>
@@ -285,9 +284,9 @@ export default function Packages() {
                   <tbody>
                     {paginated.map((r, i) => (
                       <tr key={r._id || (pageStart + i)}>
-                        <td style={{ color: "var(--muted)", textAlign: "right", minWidth: 40 }}>
+                        {/* <td style={{ color: "var(--muted)", textAlign: "right", minWidth: 40 }}>
                           {pageStart + i + 1}
-                        </td>
+                        </td> */}
                         <td>{r.cube || "NA"}</td>
                         <td>{r.box || "NA"}</td>
                         <td>{r.items || "NA"}</td>
@@ -298,13 +297,12 @@ export default function Packages() {
                         {/* Expiry with colour tag */}
                         <td>
                           {r.expiry ? (
-                            <span className={`tag ${
-                              isExpired(r.expiry)
+                            <span className={`tag ${isExpired(r.expiry)
                                 ? "tag-red"
                                 : isWarning(r.expiry)
                                   ? "tag-amber"
                                   : "tag-green"
-                            }`}>
+                              }`}>
                               {formatExpiry(r.expiry)}
                             </span>
                           ) : "NA"}
