@@ -12,6 +12,8 @@ export default function Packages() {
   const [loadingRows, setLoadingRows] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [search, setSearch]           = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ROWS_PER_PAGE = 20;
 
   // ── Load kit list on mount ──────────────────────────────────
   useEffect(() => {
@@ -40,6 +42,7 @@ export default function Packages() {
     // Clear old data immediately so user never sees stale rows
     setRows([]);
     setSearch("");
+    setCurrentPage(1);
     setLoadingRows(true);
 
     api.getKitData(kitName)
@@ -88,6 +91,14 @@ export default function Packages() {
       String(v).toLowerCase().includes(search.toLowerCase())
     )
   );
+
+  // ── Pagination ───────────────────────────────────────────────
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE));
+  const safePage    = Math.min(currentPage, totalPages);
+  const pageStart   = (safePage - 1) * ROWS_PER_PAGE;
+  const paginated   = filtered.slice(pageStart, pageStart + ROWS_PER_PAGE);
+
+  const goToPage = (p) => setCurrentPage(Math.max(1, Math.min(p, totalPages)));
 
   // ── Expiry helpers ───────────────────────────────────────────
   const parseExpiryDate = (expiry) => {
@@ -213,7 +224,7 @@ export default function Packages() {
             style={{ maxWidth: 340 }}
             placeholder="Search anything in table…"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
           />
         </div>
       )}
@@ -253,64 +264,131 @@ export default function Packages() {
           )}
 
           {filtered.length > 0 && (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Cube</th>
-                    <th>Box</th>
-                    <th>Items</th>
-                    <th>Brand</th>
-                    <th>OEM</th>
-                    <th>Type</th>
-                    <th>Expiry</th>
-                    <th>Batch No</th>
-                    <th>Document</th>
-                    <th>Link</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r, i) => (
-                    <tr key={r._id || i}>
-                      {/* <td style={{ color: "var(--muted)", textAlign: "right" }}>
-                        {r.rowNo ?? i + 1}
-                      </td> */}
-                      <td>{r.cube || "NA"}</td>
-                      <td>{r.box || "NA"}</td>
-                      <td>{r.items || "NA"}</td>
-                      <td>{r.brand || "NA"}</td>
-                      <td>{r.oem || "NA"}</td>
-                      <td>{r.itemType || "NA"}</td>
-
-                      {/* Expiry with colour tag */}
-                      <td>
-                        {r.expiry ? (
-                          <span className={`tag ${
-                            isExpired(r.expiry)
-                              ? "tag-red"
-                              : isWarning(r.expiry)
-                                ? "tag-amber"
-                                : "tag-green"
-                          }`}>
-                            {formatExpiry(r.expiry)}
-                          </span>
-                        ) : "NA"}
-                      </td>
-
-                      <td>{r.batchNo || "NA"}</td>
-                      <td>{r.document || "NA"}</td>
-
-                      {/* Link */}
-                      <td className="td-link">
-                        {r.link
-                          ? <a href={r.link} target="_blank" rel="noreferrer">↗ Open</a>
-                          : "NA"}
-                      </td>
+            <>
+              <div className="table-wrap pkg-table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Cube</th>
+                      <th>Box</th>
+                      <th>Items</th>
+                      <th>Brand</th>
+                      <th>OEM</th>
+                      <th>Type</th>
+                      <th>Expiry</th>
+                      <th>Batch No</th>
+                      <th>Document</th>
+                      <th>Link</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {paginated.map((r, i) => (
+                      <tr key={r._id || (pageStart + i)}>
+                        <td style={{ color: "var(--muted)", textAlign: "right", minWidth: 40 }}>
+                          {pageStart + i + 1}
+                        </td>
+                        <td>{r.cube || "NA"}</td>
+                        <td>{r.box || "NA"}</td>
+                        <td>{r.items || "NA"}</td>
+                        <td>{r.brand || "NA"}</td>
+                        <td>{r.oem || "NA"}</td>
+                        <td>{r.itemType || "NA"}</td>
+
+                        {/* Expiry with colour tag */}
+                        <td>
+                          {r.expiry ? (
+                            <span className={`tag ${
+                              isExpired(r.expiry)
+                                ? "tag-red"
+                                : isWarning(r.expiry)
+                                  ? "tag-amber"
+                                  : "tag-green"
+                            }`}>
+                              {formatExpiry(r.expiry)}
+                            </span>
+                          ) : "NA"}
+                        </td>
+
+                        <td>{r.batchNo || "NA"}</td>
+                        <td>{r.document || "NA"}</td>
+
+                        {/* Link */}
+                        <td className="td-link">
+                          {r.link
+                            ? <a href={r.link} target="_blank" rel="noreferrer">↗ Open</a>
+                            : "NA"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ── Pagination bar ── */}
+              {totalPages > 1 && (
+                <div className="pagination-bar">
+                  <span className="pagination-info">
+                    Showing {pageStart + 1}–{Math.min(pageStart + ROWS_PER_PAGE, filtered.length)} of {filtered.length} rows
+                  </span>
+
+                  <div className="pagination-controls">
+                    <button
+                      className="pg-btn"
+                      onClick={() => goToPage(1)}
+                      disabled={safePage === 1}
+                      title="First page"
+                    >«</button>
+
+                    <button
+                      className="pg-btn"
+                      onClick={() => goToPage(safePage - 1)}
+                      disabled={safePage === 1}
+                      title="Previous page"
+                    >‹</button>
+
+                    {/* Page number pills */}
+                    {Array.from({ length: totalPages }, (_, idx) => idx + 1)
+                      .filter(p =>
+                        p === 1 ||
+                        p === totalPages ||
+                        Math.abs(p - safePage) <= 2
+                      )
+                      .reduce((acc, p, i, arr) => {
+                        if (i > 0 && p - arr[i - 1] > 1) acc.push("…");
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((p, idx) =>
+                        p === "…" ? (
+                          <span key={`ellipsis-${idx}`} className="pg-ellipsis">…</span>
+                        ) : (
+                          <button
+                            key={p}
+                            className={`pg-btn ${safePage === p ? "pg-active" : ""}`}
+                            onClick={() => goToPage(p)}
+                          >{p}</button>
+                        )
+                      )
+                    }
+
+                    <button
+                      className="pg-btn"
+                      onClick={() => goToPage(safePage + 1)}
+                      disabled={safePage === totalPages}
+                      title="Next page"
+                    >›</button>
+
+                    <button
+                      className="pg-btn"
+                      onClick={() => goToPage(totalPages)}
+                      disabled={safePage === totalPages}
+                      title="Last page"
+                    >»</button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
