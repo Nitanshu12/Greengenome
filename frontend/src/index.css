@@ -518,7 +518,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .pkg-table-scroll {
   overflow-x: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--accent) var(--border);
+  scrollbar-color: var(--red) var(--border);
 }
 
 /* WebKit (Chrome / Safari / Edge) */
