@@ -135,7 +135,7 @@ app.get("/health", (req, res) => {
 
 // ── NeonDB schema bootstrap ───────────────────────────────────
 require("./db/initSchema")().catch(err => {
-  console.error("Schema init error:", err.message);
+  console.error("Schema init error:", err.message || err.code || err);
 });
 
 // ── API Routes ────────────────────────────────────────────────

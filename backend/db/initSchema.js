@@ -46,7 +46,7 @@ async function initSchema() {
     await pool.query(SQL);
     console.log("✅ NeonDB schema ready (items table)");
   } catch (err) {
-    console.error("❌ NeonDB schema init failed:", err.message);
+    console.error("❌ NeonDB schema init failed:", err.message || err.code || err);
     throw err;
   }
 }
