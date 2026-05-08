@@ -4,5 +4,7 @@ backend/uploads/*
 backend/.env
 frontend/dist/
 frontend/.env
+CLAUDE.md
+.claude/
 *.log
 .DS_Store

@@ -50,6 +50,13 @@ export const api = {
   adminKits:  ()          => request("GET",  "/admin/kits"),
   deleteKit:  (name)      => request("DELETE", `/admin/kits/${encodeURIComponent(name)}`),
 
+  // Items Master
+  getItems:       (params = "") => request("GET", `/items${params ? "?" + params : ""}`),
+  getItemCategories: ()         => request("GET", "/items/categories"),
+  createItem:     (body)        => request("POST",   "/items", body),
+  updateItem:     (id, body)    => request("PUT",    `/items/${id}`, body),
+  deleteItem:     (id)          => request("DELETE", `/items/${id}`),
+
   // Admin — users
   getUsers:       ()      => request("GET",   "/admin/users"),
   createUser:     (body)  => request("POST",  "/admin/users", body),

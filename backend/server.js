@@ -133,10 +133,16 @@ app.get("/health", (req, res) => {
   res.status(200).type("text").send("ok");
 });
 
+// ── NeonDB schema bootstrap ───────────────────────────────────
+require("./db/initSchema")().catch(err => {
+  console.error("Schema init error:", err.message);
+});
+
 // ── API Routes ────────────────────────────────────────────────
-app.use("/api/auth",  require("./routes/auth"));
-app.use("/api/admin", require("./routes/admin"));
-app.use("/api",       require("./routes/kits"));
+app.use("/api/auth",   require("./routes/auth"));
+app.use("/api/admin",  require("./routes/admin"));
+app.use("/api/items",  require("./routes/items"));
+app.use("/api",        require("./routes/kits"));
 
 
 

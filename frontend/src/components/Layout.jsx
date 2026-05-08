@@ -4,8 +4,9 @@ import { useAuth } from "../hooks/useAuth";
 import img5 from '../../static/images/img5.png';
 
 const NAV = [
-  { to: "/dashboard", icon: "⌂", label: "Dashboard" },
-  { to: "/packages",  icon: "📦", label: "Kits Information" },
+  { to: "/dashboard",     icon: "⌂",  label: "Dashboard" },
+  { to: "/packages",      icon: "📦", label: "Kits Information" },
+  { to: "/items-master",  icon: "🗂", label: "Items Master" },
 ];
 
 const ADMIN_NAV = [
