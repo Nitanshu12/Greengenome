@@ -7,7 +7,7 @@ const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
 // ── GET /api/items  (search + filter) ────────────────────────
 router.get("/", requireLogin, async (req, res) => {
   try {
-    const { q = "", category = "", reusable } = req.query;
+    const { q = "", category = "", category2 = "", reusable } = req.query;
     const params = [];
     const conditions = [];
 
@@ -21,6 +21,10 @@ router.get("/", requireLogin, async (req, res) => {
       params.push(category);
       conditions.push(`category = $${params.length}`);
     }
+    if (category2) {
+      params.push(category2);
+      conditions.push(`category2 = $${params.length}`);
+    }
     if (reusable !== undefined) {
       params.push(reusable === "true");
       conditions.push(`is_reusable = $${params.length}`);
@@ -28,7 +32,7 @@ router.get("/", requireLogin, async (req, res) => {
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const { rows } = await pool.query(
-      `SELECT * FROM items ${where} ORDER BY id DESC`,
+      `SELECT * FROM items ${where} ORDER BY (regexp_replace(item_code, '[^0-9]+', '', 'g'))::int ASC NULLS LAST, item_code ASC`,
       params
     );
     res.json({ data: rows });
@@ -44,6 +48,18 @@ router.get("/categories", requireLogin, async (req, res) => {
       "SELECT DISTINCT category FROM items WHERE category IS NOT NULL ORDER BY category"
     );
     res.json({ data: rows.map(r => r.category) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/items/categories2  (distinct category2 list) ────
+router.get("/categories2", requireLogin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT DISTINCT category2 FROM items WHERE category2 IS NOT NULL ORDER BY category2"
+    );
+    res.json({ data: rows.map(r => r.category2) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -7,6 +7,7 @@ const NAV = [
   { to: "/dashboard",     icon: "⌂",  label: "Dashboard" },
   { to: "/packages",      icon: "📦", label: "Kits Information" },
   { to: "/items-master",  icon: "🗂", label: "Items Master" },
+  { to: "/vendor-list",   icon: "🏪", label: "Vendor List" },
 ];
 
 const ADMIN_NAV = [

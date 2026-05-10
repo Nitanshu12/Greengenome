@@ -51,11 +51,18 @@ export const api = {
   deleteKit:  (name)      => request("DELETE", `/admin/kits/${encodeURIComponent(name)}`),
 
   // Items Master
-  getItems:       (params = "") => request("GET", `/items${params ? "?" + params : ""}`),
-  getItemCategories: ()         => request("GET", "/items/categories"),
+  getItems:        (params = "") => request("GET", `/items${params ? "?" + params : ""}`),
+  getItemCategories:  ()        => request("GET", "/items/categories"),
+  getItemCategories2: ()        => request("GET", "/items/categories2"),
   createItem:     (body)        => request("POST",   "/items", body),
   updateItem:     (id, body)    => request("PUT",    `/items/${id}`, body),
   deleteItem:     (id)          => request("DELETE", `/items/${id}`),
+
+  // Vendor List
+  getVendors:     (params = "") => request("GET",    `/vendors${params ? "?" + params : ""}`),
+  createVendor:   (body)        => request("POST",   "/vendors", body),
+  updateVendor:   (id, body)    => request("PUT",    `/vendors/${id}`, body),
+  deleteVendor:   (id)          => request("DELETE", `/vendors/${id}`),
 
   // Admin — users
   getUsers:       ()      => request("GET",   "/admin/users"),

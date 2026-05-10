@@ -139,10 +139,11 @@ require("./db/initSchema")().catch(err => {
 });
 
 // ── API Routes ────────────────────────────────────────────────
-app.use("/api/auth",   require("./routes/auth"));
-app.use("/api/admin",  require("./routes/admin"));
-app.use("/api/items",  require("./routes/items"));
-app.use("/api",        require("./routes/kits"));
+app.use("/api/auth",    require("./routes/auth"));
+app.use("/api/admin",   require("./routes/admin"));
+app.use("/api/items",   require("./routes/items"));
+app.use("/api/vendors", require("./routes/vendors"));
+app.use("/api",         require("./routes/kits"));
 
 
 

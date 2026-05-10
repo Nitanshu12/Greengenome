@@ -1,13 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { api } from "../api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/Toast";
-
-const CATEGORIES = [
-  "Trauma Care", "Airway Management", "Surgical Tools",
-  "Diagnostic Equipment", "Consumables", "Medications",
-  "Immobilization", "Burn Care", "Cardiac Care", "Other"
-];
 
 const UNITS = ["Piece", "Box", "Pack", "Strip", "Vial", "Bottle", "Roll", "Pair", "Set", "Kg", "Litre", "Metre"];
 
@@ -20,7 +14,7 @@ const EMPTY_FORM = {
   min_stock: "", max_stock: ""
 };
 
-function ItemFormModal({ initial, onSave, onClose, saving }) {
+function ItemFormModal({ initial, onSave, onClose, saving, categories, categories2 }) {
   const [form, setForm] = useState(initial || EMPTY_FORM);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -66,13 +60,16 @@ function ItemFormModal({ initial, onSave, onClose, saving }) {
             <select className="form-select" value={form.category}
               onChange={e => set("category", e.target.value)}>
               <option value="">Select category</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">Category 2</label>
-            <input className="form-input" value={form.category2}
-              onChange={e => set("category2", e.target.value)} placeholder="Optional" />
+            <select className="form-select" value={form.category2}
+              onChange={e => set("category2", e.target.value)}>
+              <option value="">Select category 2</option>
+              {categories2.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
           <div className="form-group">
             <label className="form-label">Sub Category</label>
@@ -162,9 +159,11 @@ export default function ItemsMaster() {
   const isAdmin = ["admin", "superadmin"].includes(user?.role);
 
   const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("");
+  const [filterCat2, setFilterCat2] = useState("");
   const [page, setPage] = useState(1);
   const PER_PAGE = 15;
 
@@ -172,16 +171,32 @@ export default function ItemsMaster() {
   const [editTarget, setEditTarget] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // Derive distinct category & category2 values from all items (no filter applied)
+  const categories = useMemo(() =>
+    [...new Set(allItems.map(i => i.category).filter(Boolean))].sort(),
+    [allItems]
+  );
+  const categories2 = useMemo(() =>
+    [...new Set(allItems.map(i => i.category2).filter(Boolean))].sort(),
+    [allItems]
+  );
+
   const load = useCallback(() => {
     setLoading(true);
     const params = new URLSearchParams();
     if (search) params.set("q", search);
     if (filterCat) params.set("category", filterCat);
+    if (filterCat2) params.set("category2", filterCat2);
+    const isFiltered = search || filterCat || filterCat2;
     api.getItems(params.toString())
-      .then(d => { setItems(d.data); setPage(1); })
+      .then(d => {
+        setItems(d.data);
+        setPage(1);
+        if (!isFiltered) setAllItems(d.data);
+      })
       .catch(e => toast(e.message, "error"))
       .finally(() => setLoading(false));
-  }, [search, filterCat]);
+  }, [search, filterCat, filterCat2]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -235,15 +250,13 @@ export default function ItemsMaster() {
   const pageItems = items.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const categoryTag = (cat) => {
-    const colors = {
-      "Trauma Care": "tag-red",
-      "Airway Management": "tag-blue",
-      "Surgical Tools": "tag-amber",
-      "Diagnostic Equipment": "tag-green",
-      "Medications": "tag-blue",
-      "Consumables": "tag-gray",
-    };
-    return <span className={`tag ${colors[cat] || "tag-gray"}`}>{cat}</span>;
+    if (!cat) return <span style={{ color: "var(--muted)" }}>—</span>;
+    const upper = cat.toUpperCase();
+    const cls = upper.includes("PHARMA") ? "tag-blue"
+              : upper.includes("NON") ? "tag-green"
+              : upper.includes("OPEN") ? "tag-amber"
+              : "tag-gray";
+    return <span className={`tag ${cls}`}>{cat}</span>;
   };
 
   return (
@@ -274,16 +287,25 @@ export default function ItemsMaster() {
         />
         <select
           className="form-select"
-          style={{ maxWidth: 220 }}
+          style={{ maxWidth: 200 }}
           value={filterCat}
           onChange={e => setFilterCat(e.target.value)}
         >
           <option value="">All Categories</option>
-          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        {(search || filterCat) && (
+        {/* <select
+          className="form-select"
+          style={{ maxWidth: 200 }}
+          value={filterCat2}
+          onChange={e => setFilterCat2(e.target.value)}
+        >
+          <option value="">All Category 2</option>
+          {categories2.map(c => <option key={c} value={c}>{c}</option>)}
+        </select> */}
+        {(search || filterCat || filterCat2) && (
           <button className="btn btn-ghost btn-sm"
-            onClick={() => { setSearch(""); setFilterCat(""); }}>
+            onClick={() => { setSearch(""); setFilterCat(""); setFilterCat2(""); }}>
             Clear
           </button>
         )}
@@ -308,14 +330,20 @@ export default function ItemsMaster() {
             <table>
               <thead>
                 <tr>
-                  <th>#</th>
+                  {/* <th>#</th> */}
                   <th>Item Code</th>
                   <th>Name</th>
+                  <th>Specification</th>
                   <th>Category</th>
+                  <th>Category 2</th>
+                  <th>Sub Category</th>
+                  <th>Product Category</th>
+                  <th>Material</th>
                   <th>Unit</th>
                   <th>Unit Cost</th>
                   <th>GST %</th>
                   <th>Min Stock</th>
+                  <th>Max Stock</th>
                   <th>Reusable</th>
                   {isAdmin && <th>Actions</th>}
                 </tr>
@@ -323,26 +351,67 @@ export default function ItemsMaster() {
               <tbody>
                 {pageItems.map((item, idx) => (
                   <tr key={item.id}>
-                    <td style={{ color: "var(--muted)", fontSize: 12 }}>
+                    {/* <td style={{ color: "var(--muted)", fontSize: 12 }}>
                       {(page - 1) * PER_PAGE + idx + 1}
-                    </td>
+                    </td> */}
                     <td>
                       <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12,
                         background: "var(--border)", padding: "2px 6px", borderRadius: 4 }}>
                         {item.item_code}
                       </span>
                     </td>
-                    <td style={{ maxWidth: 260 }}>
-                      <div style={{ fontWeight: 500 }}>{item.name}</div>
-                      {item.specification && (
-                        <div style={{ fontSize: 11, color: "var(--muted)",
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                          maxWidth: 240 }}>
-                          {item.specification}
-                        </div>
-                      )}
+                    <td style={{ maxWidth: 200 }}>
+                      <div style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis",
+                        whiteSpace: "nowrap", maxWidth: 200 }} title={item.name}>
+                        {item.name}
+                      </div>
+                    </td>
+                    <td style={{ maxWidth: 180 }}>
+                      {item.specification
+                        ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
+                            whiteSpace: "nowrap", maxWidth: 180, fontSize: 12, color: "var(--muted)" }}
+                            title={item.specification}>
+                            {item.specification}
+                          </span>
+                        : <span style={{ color: "var(--muted)" }}>—</span>}
                     </td>
                     <td>{categoryTag(item.category)}</td>
+                    <td style={{ maxWidth: 140 }}>
+                      {item.category2
+                        ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
+                            whiteSpace: "nowrap", maxWidth: 140, fontSize: 12 }}
+                            title={item.category2}>
+                            {item.category2}
+                          </span>
+                        : <span style={{ color: "var(--muted)" }}>—</span>}
+                    </td>
+                    <td style={{ maxWidth: 140 }}>
+                      {item.sub_category
+                        ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
+                            whiteSpace: "nowrap", maxWidth: 140, fontSize: 12 }}
+                            title={item.sub_category}>
+                            {item.sub_category}
+                          </span>
+                        : <span style={{ color: "var(--muted)" }}>—</span>}
+                    </td>
+                    <td style={{ maxWidth: 140 }}>
+                      {item.product_category
+                        ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
+                            whiteSpace: "nowrap", maxWidth: 140, fontSize: 12 }}
+                            title={item.product_category}>
+                            {item.product_category}
+                          </span>
+                        : <span style={{ color: "var(--muted)" }}>—</span>}
+                    </td>
+                    <td style={{ maxWidth: 130 }}>
+                      {item.material
+                        ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
+                            whiteSpace: "nowrap", maxWidth: 130, fontSize: 12 }}
+                            title={item.material}>
+                            {item.material}
+                          </span>
+                        : <span style={{ color: "var(--muted)" }}>—</span>}
+                    </td>
                     <td style={{ color: "var(--muted)" }}>{item.unit}</td>
                     <td>
                       {item.unit_cost > 0
@@ -353,7 +422,8 @@ export default function ItemsMaster() {
                     <td style={{ color: "var(--muted)" }}>
                       {item.gst_percent > 0 ? `${item.gst_percent}%` : "—"}
                     </td>
-                    <td style={{ color: "var(--muted)" }}>{item.min_stock}</td>
+                    <td style={{ color: "var(--muted)" }}>{item.min_stock ?? "—"}</td>
+                    <td style={{ color: "var(--muted)" }}>{item.max_stock ?? "—"}</td>
                     <td>
                       <span className={`tag ${item.is_reusable ? "tag-green" : "tag-gray"}`}>
                         {item.is_reusable ? "Yes" : "No"}
@@ -430,6 +500,8 @@ export default function ItemsMaster() {
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditTarget(null); }}
           saving={saving}
+          categories={categories}
+          categories2={categories2}
         />
       )}
     </>

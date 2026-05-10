@@ -7,6 +7,7 @@ import Packages from "./pages/Packages";
 import AdminUpload from "./pages/AdminUpload";
 import AdminUsers from "./pages/AdminUsers";
 import ItemsMaster from "./pages/ItemsMaster";
+import VendorList from "./pages/VendorList";
 
 function RequireAuth({ children, adminOnly = false }) {
   const { user } = useAuth();
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="packages" element={<Packages />} />
         <Route path="items-master" element={<ItemsMaster />} />
+        <Route path="vendor-list"  element={<VendorList />} />
         <Route path="admin/upload" element={<RequireAuth adminOnly><AdminUpload /></RequireAuth>} />
         <Route path="admin/users" element={<RequireAuth adminOnly><AdminUsers /></RequireAuth>} />
       </Route>
