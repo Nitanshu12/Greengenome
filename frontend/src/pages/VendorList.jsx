@@ -242,7 +242,7 @@ export default function VendorList() {
             <table>
               <thead>
                 <tr>
-                  <th>#</th>
+                  {/* <th>#</th> */}
                   <th>Item Code</th>
                   <th>Item Name</th>
                   <th>Vendor Code</th>
@@ -259,9 +259,9 @@ export default function VendorList() {
               <tbody>
                 {pageRows.map((row, idx) => (
                   <tr key={row.id}>
-                    <td style={{ color: "var(--muted)", fontSize: 12 }}>
+                    {/* <td style={{ color: "var(--muted)", fontSize: 12 }}>
                       {(page - 1) * PER_PAGE + idx + 1}
-                    </td>
+                    </td> */}
                     <td>
                       <span style={{
                         fontFamily: "monospace", fontWeight: 600, fontSize: 12,
@@ -271,7 +271,10 @@ export default function VendorList() {
                       </span>
                     </td>
                     <td style={{ maxWidth: 200 }}>
-                      <div style={{ fontWeight: 500 }}>{row.item_name}</div>
+                      <div style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis",
+                        whiteSpace: "nowrap", maxWidth: 200 }} title={row.item_name}>
+                        {row.item_name}
+                      </div>
                     </td>
                     <td>
                       <span style={{
@@ -281,13 +284,30 @@ export default function VendorList() {
                         {row.vendor_code}
                       </span>
                     </td>
-                    <td style={{ fontWeight: 500 }}>{row.business_name}</td>
-                    <td style={{ color: "var(--muted)", maxWidth: 180, fontSize: 12 }}>
-                      {row.address || <span style={{ color: "var(--muted)" }}>—</span>}
+                    <td style={{ maxWidth: 180 }}>
+                      <span style={{ fontWeight: 500, display: "block", overflow: "hidden",
+                        textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}
+                        title={row.business_name}>
+                        {row.business_name}
+                      </span>
                     </td>
-                    <td style={{ fontSize: 12 }}>
+                    <td style={{ maxWidth: 160 }}>
+                      {row.address
+                        ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
+                            whiteSpace: "nowrap", maxWidth: 160, fontSize: 12, color: "var(--muted)" }}
+                            title={row.address}>
+                            {row.address}
+                          </span>
+                        : <span style={{ color: "var(--muted)" }}>—</span>}
+                    </td>
+                    <td style={{ maxWidth: 160 }}>
                       {row.email
-                        ? <a href={`mailto:${row.email}`} style={{ color: "var(--accent)" }}>{row.email}</a>
+                        ? <a href={`mailto:${row.email}`}
+                            style={{ color: "var(--accent)", display: "block", overflow: "hidden",
+                              textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160, fontSize: 12 }}
+                            title={row.email}>
+                            {row.email}
+                          </a>
                         : <span style={{ color: "var(--muted)" }}>—</span>}
                     </td>
                     <td style={{ color: "var(--muted)" }}>{row.phone || "—"}</td>

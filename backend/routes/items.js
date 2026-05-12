@@ -12,9 +12,9 @@ router.get("/", requireLogin, async (req, res) => {
     const conditions = [];
 
     if (q) {
-      params.push(`%${q}%`);
+      params.push(q.trim(), `%${q.trim()}%`);
       conditions.push(
-        `(name ILIKE $${params.length} OR item_code ILIKE $${params.length})`
+        `(item_code ILIKE $${params.length - 1} OR name ILIKE $${params.length})`
       );
     }
     if (category) {

@@ -11,9 +11,10 @@ router.get("/", requireLogin, async (req, res) => {
     const params = [];
     let where = "";
     if (q) {
-      params.push(`%${q}%`);
-      where = `WHERE (i.item_code ILIKE $1 OR i.name ILIKE $1
-                   OR v.vendor_code ILIKE $1 OR v.business_name ILIKE $1)`;
+      // $1 = exact (for codes), $2 = fuzzy (for names)
+      params.push(q.trim(), `%${q.trim()}%`);
+      where = `WHERE (i.item_code ILIKE $1 OR i.name ILIKE $2
+                   OR v.vendor_code ILIKE $1 OR v.business_name ILIKE $2)`;
     }
     const { rows } = await pool.query(
       `SELECT iv.id,
@@ -24,7 +25,7 @@ router.get("/", requireLogin, async (req, res) => {
        JOIN items i   ON i.id = iv.item_id
        JOIN vendors v ON v.id = iv.vendor_id
        ${where}
-       ORDER BY iv.id DESC`,
+       ORDER BY (regexp_match(i.item_code, '\\d+'))[1]::int ASC, i.item_code ASC`,
       params
     );
     res.json({ data: rows });
