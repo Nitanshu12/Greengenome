@@ -15,74 +15,137 @@ const ADMIN_NAV = [
   { to: "/admin/users",  icon: "👥", label: "Users" },
 ];
 
+const isMobile = () =>
+  typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches;
+
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isAdmin = ["admin", "superadmin"].includes(user?.role);
-  const [navOpen, setNavOpen] = useState(false);
+
+  // Desktop: collapsed (icon-only) vs expanded
+  const [collapsed, setCollapsed] = useState(false);
+  // Mobile: drawer open vs closed
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
-    setNavOpen(false);
+    setDrawerOpen(false);
   }, [location.pathname]);
+
+  const handleToggle = () => {
+    if (isMobile()) {
+      setDrawerOpen((o) => !o);
+    } else {
+      setCollapsed((c) => !c);
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
     navigate("/login");
   };
 
+  const sidebarClass = [
+    "sidebar",
+    collapsed ? "collapsed" : "",
+    drawerOpen ? "open" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className="app-shell">
-      {/* ── Topbar ── */}
-      <header className="topbar">
-        <div className="topbar-left">
-             <img src={img5} alt="Logo" style={{ height: '44px', width: '110px', margin: '5px 0px' }} />
-          
+    <div className={"app-shell" + (collapsed ? " app-collapsed" : "")}>
+      {/* ── Sidebar ── */}
+      <aside className={sidebarClass}>
+        <div className="sidebar-logo">
+          <img src={img5} alt="Logo" />
           <button
             type="button"
-            className="menu-toggle"
-            onClick={() => setNavOpen((o) => !o)}
+            className="sidebar-collapse-btn"
+            onClick={handleToggle}
+            aria-label="Toggle sidebar"
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             ☰
           </button>
         </div>
-        
-        <div className="topbar-center">
-          <nav className={`topbar-nav ${navOpen ? 'open' : ''}`}>
-             {NAV.map(n => (
-               <NavLink
-                 key={n.to}
-                 to={n.to}
-                 className={({ isActive }) => "topbar-nav-link" + (isActive ? " active" : "")}
-               >
-                 <span className="nav-icon">{n.icon}</span>
-                 {n.label}
-               </NavLink>
-             ))}
-             {isAdmin && ADMIN_NAV.map(n => (
-               <NavLink
-                 key={n.to}
-                 to={n.to}
-                 className={({ isActive }) => "topbar-nav-link" + (isActive ? " active" : "")}
-               >
-                 <span className="nav-icon">{n.icon}</span>
-                 {n.label}
-               </NavLink>
-             ))}
-          </nav>
-        </div>
 
-        <div className="topbar-right">
-          <span className="user-name">👤 {user?.username}</span>
-          {/* <span className={`badge-role ${user?.role}`}>{user?.role}</span> */}
-          <button className="btn-logout" onClick={handleLogout}>⍈</button>
-        </div>
-      </header>
+        <nav className="sidebar-nav">
+          <div className="sidebar-section-label">Main</div>
+          {NAV.map((n) => (
+            <NavLink
+              key={n.to}
+              to={n.to}
+              title={n.label}
+              className={({ isActive }) =>
+                "sidebar-link" + (isActive ? " active" : "")
+              }
+            >
+              <span className="nav-icon">{n.icon}</span>
+              <span className="nav-label">{n.label}</span>
+            </NavLink>
+          ))}
 
-      {/* ── Page content ── */}
-      <main className="main-content">
-        <Outlet />
-      </main>
+          {isAdmin && (
+            <>
+              <div className="sidebar-section-label">Admin</div>
+              {ADMIN_NAV.map((n) => (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  title={n.label}
+                  className={({ isActive }) =>
+                    "sidebar-link" + (isActive ? " active" : "")
+                  }
+                >
+                  <span className="nav-icon">{n.icon}</span>
+                  <span className="nav-label">{n.label}</span>
+                </NavLink>
+              ))}
+            </>
+          )}
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="sidebar-user">
+            <span className="sidebar-user-avatar">👤</span>
+            <div className="sidebar-user-meta">
+              <span className="sidebar-user-name">{user?.username}</span>
+              {user?.role && (
+                <span className="sidebar-user-role">{user.role}</span>
+              )}
+            </div>
+          </div>
+          <button
+            className="sidebar-logout"
+            onClick={handleLogout}
+            title="Logout"
+          >
+            <span>⍈</span> <span className="nav-label">Logout</span>
+          </button>
+        </div>
+      </aside>
+
+      {drawerOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setDrawerOpen(false)}
+        />
+      )}
+
+      {/* ── Content area ── */}
+      <div className="content-area">
+        <header className="content-topbar">
+          <div className="content-topbar-title">
+            Arogya Maitri · BHISHM IMS
+          </div>
+        </header>
+
+        <main className="main-content">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }
