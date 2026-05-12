@@ -137,6 +137,14 @@ export default function Layout() {
       {/* ── Content area ── */}
       <div className="content-area">
         <header className="content-topbar">
+          <button
+            type="button"
+            className="menu-toggle mobile-only"
+            onClick={handleToggle}
+            aria-label="Open menu"
+          >
+            ☰
+          </button>
           <div className="content-topbar-title">
             Arogya Maitri · BHISHM IMS
           </div>
