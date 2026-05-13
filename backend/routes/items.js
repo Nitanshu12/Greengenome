@@ -65,6 +65,26 @@ router.get("/categories2", requireLogin, async (req, res) => {
   }
 });
 
+// ── GET /api/items/next-code ──────────────────────────────────
+router.get("/next-code", requireLogin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT item_code FROM items
+       ORDER BY (regexp_replace(item_code, '[^0-9]+', '', 'g'))::int DESC NULLS LAST
+       LIMIT 1`
+    );
+    const lastCode = rows[0]?.item_code || "";
+    const match = lastCode.match(/^(.*?)(\d+)$/);
+    const prefix = match ? match[1] : "ITM-";
+    const lastNum = match ? parseInt(match[2], 10) : 0;
+    const padLen = match ? match[2].length : 3;
+    const nextCode = prefix + String(lastNum + 1).padStart(padLen, "0");
+    res.json({ next_code: nextCode });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── GET /api/items/:id ────────────────────────────────────────
 router.get("/:id", requireLogin, async (req, res) => {
   try {

@@ -14,8 +14,15 @@ const EMPTY_FORM = {
   min_stock: "", max_stock: ""
 };
 
-function ItemFormModal({ initial, onSave, onClose, saving, categories, categories2 }) {
-  const [form, setForm] = useState(initial || EMPTY_FORM);
+function ItemFormModal({ initial, nextCode, onSave, onClose, saving, categories, categories2 }) {
+  const [form, setForm] = useState(() => {
+    if (initial) return initial;
+    return { ...EMPTY_FORM, item_code: nextCode || "" };
+  });
+
+  useEffect(() => {
+    if (!initial && nextCode) setForm(f => ({ ...f, item_code: nextCode }));
+  }, [nextCode, initial]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -33,9 +40,13 @@ function ItemFormModal({ initial, onSave, onClose, saving, categories, categorie
         {/* ── Row 1: Code + Name ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
           <div className="form-group">
-            <label className="form-label">Item Code *</label>
-            <input className="form-input" value={form.item_code}
-              onChange={e => set("item_code", e.target.value)} placeholder="e.g. TRK-001" />
+            <label className="form-label">Item Code</label>
+            <input
+              className="form-input"
+              value={form.item_code}
+              readOnly
+              style={{ background: "var(--border)", cursor: "default", color: "var(--muted)", fontFamily: "monospace" }}
+            />
           </div>
           <div className="form-group">
             <label className="form-label">Name *</label>
@@ -170,6 +181,7 @@ export default function ItemsMaster() {
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [nextItemCode, setNextItemCode] = useState("");
 
   // Derive distinct category & category2 values from all items (no filter applied)
   const categories = useMemo(() =>
@@ -201,8 +213,8 @@ export default function ItemsMaster() {
   useEffect(() => { load(); }, [load]);
 
   const handleSave = async (form) => {
-    if (!form.item_code.trim() || !form.name.trim() || !form.category || !form.unit) {
-      toast("Item code, name, category, and unit are required", "error");
+    if (!form.name.trim() || !form.category || !form.unit) {
+      toast("Name, category, and unit are required", "error");
       return;
     }
     setSaving(true);
@@ -240,8 +252,14 @@ export default function ItemsMaster() {
     setShowForm(true);
   };
 
-  const openAdd = () => {
+  const openAdd = async () => {
     setEditTarget(null);
+    try {
+      const d = await api.getNextItemCode();
+      setNextItemCode(d.next_code);
+    } catch {
+      setNextItemCode("");
+    }
     setShowForm(true);
   };
 
@@ -481,6 +499,7 @@ export default function ItemsMaster() {
       {/* ── Add / Edit Modal ── */}
       {showForm && (
         <ItemFormModal
+          nextCode={nextItemCode}
           initial={editTarget ? {
             item_code: editTarget.item_code || "",
             name: editTarget.name || "",
