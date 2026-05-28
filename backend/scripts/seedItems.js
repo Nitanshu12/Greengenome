@@ -1,10 +1,15 @@
 require("dotenv").config({ path: require("path").join(__dirname, "../.env") });
 const XLSX = require("xlsx");
-const { Pool } = require("pg");
+const mysql = require("mysql2/promise");
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+const pool = mysql.createPool({
+  host:     process.env.DB_HOST     || "localhost",
+  user:     process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  charset:  "utf8mb4",
+  waitForConnections: true,
+  connectionLimit: 5
 });
 
 function normalizeUnit(raw) {
@@ -28,14 +33,12 @@ function normalizeUnit(raw) {
 }
 
 function normalizeReusable(raw) {
-  const v = String(raw || "").trim().toLowerCase();
-  return v.includes("reusable");
+  return String(raw || "").trim().toLowerCase().includes("reusable");
 }
 
 function normalizeGst(raw) {
   const n = parseFloat(raw);
   if (isNaN(n)) return 0;
-  // values like 0.05 → 5%, values already like 5 stay as 5
   return n > 0 && n < 1 ? Math.round(n * 100 * 100) / 100 : n;
 }
 
@@ -49,36 +52,34 @@ async function seed() {
 
   for (const row of rows) {
     const item_code = String(row["Item Code"] || "").trim();
-    const name      = String(row["Product"] || "").trim();
+    const name      = String(row["Product"]   || "").trim();
 
     if (!item_code || !name) { skipped++; continue; }
 
-    const category         = String(row["category"] || "Other").trim() || "Other";
-    const category2        = String(row["Category2"] || "").trim() || null;
-    const sub_category     = String(row["__EMPTY"] || "").trim() || null;
-    const product_category = String(row["Product Category"] || "").trim() || null;
-    const material         = String(row["Material"] || "").trim() || null;
-    const specification    = String(row["product Specification"] || "").trim() || null;
-    const is_reusable      = normalizeReusable(row["One time use/Reusable"]);
+    const category         = String(row["category"]               || "Other").trim() || "Other";
+    const category2        = String(row["Category2"]              || "").trim() || null;
+    const sub_category     = String(row["__EMPTY"]                || "").trim() || null;
+    const product_category = String(row["Product Category"]       || "").trim() || null;
+    const material         = String(row["Material"]               || "").trim() || null;
+    const specification    = String(row["product Specification"]  || "").trim() || null;
+    const is_reusable      = normalizeReusable(row["One time use/Reusable"]) ? 1 : 0;
     const unit             = normalizeUnit(row["Unit"]);
     const unit_cost        = parseFloat(row["Unit Cost (₹)"]) || 0;
     const gst_percent      = normalizeGst(row["gst"]);
     const min_stock        = parseInt(row["Min Threshold"]) || 0;
-    const max_stock        = parseInt(row["Max Stock"]) || null;
 
     try {
       await pool.query(
         `INSERT INTO items
            (item_code, name, specification,
             category, category2, sub_category, product_category, material,
-            is_reusable, unit, unit_cost, gst_percent, min_stock, max_stock)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-         ON CONFLICT (item_code) DO NOTHING`,
+            is_reusable, unit, unit_cost, gst_percent, min_stock)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE item_code = item_code`,
         [
           item_code, name, specification,
           category, category2, sub_category, product_category, material,
-          is_reusable, unit, unit_cost, gst_percent, min_stock,
-          isNaN(max_stock) ? null : max_stock
+          is_reusable, unit, unit_cost, gst_percent, min_stock
         ]
       );
       inserted++;

@@ -37,19 +37,6 @@ async function initSchema() {
       ) ENGINE=InnoDB
     `);
 
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS item_vendors (
-        id          INT AUTO_INCREMENT PRIMARY KEY,
-        item_code   VARCHAR(50) NOT NULL,
-        vendor_id   INT NOT NULL,
-        offer_price DECIMAL(12,2),
-        lead_time   VARCHAR(100),
-        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_item_vendor (item_code, vendor_id),
-        FOREIGN KEY (item_code) REFERENCES items(item_code) ON DELETE CASCADE,
-        FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB
-    `);
 
     console.log("✅ MariaDB schema ready");
   } catch (err) {
