@@ -4,7 +4,7 @@ const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
 
-// GET /api/vendors — flat join: items × vendors × item_vendors
+// GET /api/vendors — item_vendors joined with items and vendors
 router.get("/", requireLogin, async (req, res) => {
   try {
     const { q = "" } = req.query;
@@ -48,7 +48,6 @@ router.post("/", ...adminOnly, async (req, res) => {
 
     await conn.beginTransaction();
 
-    // Upsert vendor
     await conn.query(
       `INSERT INTO vendors (vendor_code, business_name, address, email, phone, contact_person)
        VALUES (?,?,?,?,?,?)
@@ -58,20 +57,14 @@ router.post("/", ...adminOnly, async (req, res) => {
          email           = VALUES(email),
          phone           = VALUES(phone),
          contact_person  = VALUES(contact_person)`,
-      [
-        vendor_code.trim(), business_name.trim(),
-        address || null, email || null, phone || null, contact_person || null
-      ]
+      [vendor_code.trim(), business_name.trim(), address || null, email || null, phone || null, contact_person || null]
     );
     const [[vendor]] = await conn.query("SELECT id FROM vendors WHERE vendor_code = ?", [vendor_code.trim()]);
-    const vendor_id = vendor.id;
 
     const [result] = await conn.query(
-      `INSERT INTO item_vendors (item_code, vendor_id, offer_price, lead_time)
-       VALUES (?,?,?,?)`,
+      `INSERT INTO item_vendors (item_code, vendor_id, offer_price, lead_time) VALUES (?,?,?,?)`,
       [
-        item_code,
-        vendor_id,
+        item_code, vendor.id,
         offer_price !== "" && offer_price != null ? Number(offer_price) : null,
         lead_time || null
       ]
@@ -94,11 +87,7 @@ router.post("/", ...adminOnly, async (req, res) => {
 router.put("/:id", ...adminOnly, async (req, res) => {
   const conn = await pool.getConnection();
   try {
-    const {
-      vendor_code, business_name,
-      address, email, phone, contact_person,
-      offer_price, lead_time
-    } = req.body;
+    const { vendor_code, business_name, address, email, phone, contact_person, offer_price, lead_time } = req.body;
 
     if (!vendor_code || !business_name) {
       return res.status(400).json({ error: "vendor_code and business_name are required" });
@@ -106,33 +95,20 @@ router.put("/:id", ...adminOnly, async (req, res) => {
 
     await conn.beginTransaction();
 
-    const [[ivRow]] = await conn.query(
-      "SELECT vendor_id FROM item_vendors WHERE id = ?",
-      [req.params.id]
-    );
+    const [[ivRow]] = await conn.query("SELECT vendor_id FROM item_vendors WHERE id = ?", [req.params.id]);
     if (!ivRow) {
       await conn.rollback();
       return res.status(404).json({ error: "Vendor link not found" });
     }
 
     await conn.query(
-      `UPDATE vendors
-       SET vendor_code=?, business_name=?, address=?, email=?, phone=?, contact_person=?
-       WHERE id=?`,
-      [
-        vendor_code.trim(), business_name.trim(),
-        address || null, email || null, phone || null, contact_person || null,
-        ivRow.vendor_id
-      ]
+      `UPDATE vendors SET vendor_code=?, business_name=?, address=?, email=?, phone=?, contact_person=? WHERE id=?`,
+      [vendor_code.trim(), business_name.trim(), address || null, email || null, phone || null, contact_person || null, ivRow.vendor_id]
     );
 
     await conn.query(
       "UPDATE item_vendors SET offer_price=?, lead_time=? WHERE id=?",
-      [
-        offer_price !== "" && offer_price != null ? Number(offer_price) : null,
-        lead_time || null,
-        req.params.id
-      ]
+      [offer_price !== "" && offer_price != null ? Number(offer_price) : null, lead_time || null, req.params.id]
     );
 
     await conn.commit();
@@ -151,10 +127,7 @@ router.put("/:id", ...adminOnly, async (req, res) => {
 // DELETE /api/vendors/:id — remove item_vendor link only
 router.delete("/:id", ...adminOnly, async (req, res) => {
   try {
-    const [result] = await pool.query(
-      "DELETE FROM item_vendors WHERE id = ?",
-      [req.params.id]
-    );
+    const [result] = await pool.query("DELETE FROM item_vendors WHERE id = ?", [req.params.id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: "Vendor link not found" });
     res.json({ msg: "Vendor link removed" });
   } catch (err) {

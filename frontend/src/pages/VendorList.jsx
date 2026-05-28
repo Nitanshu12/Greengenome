@@ -163,7 +163,7 @@ export default function VendorList() {
     setSaving(true);
     try {
       if (editTarget) {
-        await api.updateVendor(editTarget.id, form);  // id here is item_vendors.id (int), not items.id
+        await api.updateVendor(editTarget.id, form);
         toast("Vendor link updated");
       } else {
         await api.createVendor(form);
@@ -242,7 +242,6 @@ export default function VendorList() {
             <table>
               <thead>
                 <tr>
-                  {/* <th>#</th> */}
                   <th>Item Code</th>
                   <th>Item Name</th>
                   <th>Vendor Code</th>
@@ -257,16 +256,11 @@ export default function VendorList() {
                 </tr>
               </thead>
               <tbody>
-                {pageRows.map((row, idx) => (
-                  <tr key={`${row.item_code}-${row.vendor_code}`}>
-                    {/* <td style={{ color: "var(--muted)", fontSize: 12 }}>
-                      {(page - 1) * PER_PAGE + idx + 1}
-                    </td> */}
+                {pageRows.map((row) => (
+                  <tr key={row.id}>
                     <td>
-                      <span style={{
-                        fontFamily: "monospace", fontWeight: 600, fontSize: 12,
-                        background: "var(--border)", padding: "2px 6px", borderRadius: 4
-                      }}>
+                      <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12,
+                        background: "var(--border)", padding: "2px 6px", borderRadius: 4 }}>
                         {row.item_code}
                       </span>
                     </td>
@@ -277,10 +271,8 @@ export default function VendorList() {
                       </div>
                     </td>
                     <td>
-                      <span style={{
-                        fontFamily: "monospace", fontWeight: 600, fontSize: 12,
-                        background: "var(--border)", padding: "2px 6px", borderRadius: 4
-                      }}>
+                      <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12,
+                        background: "var(--border)", padding: "2px 6px", borderRadius: 4 }}>
                         {row.vendor_code}
                       </span>
                     </td>
@@ -295,9 +287,7 @@ export default function VendorList() {
                       {row.address
                         ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
                             whiteSpace: "nowrap", maxWidth: 160, fontSize: 12, color: "var(--muted)" }}
-                            title={row.address}>
-                            {row.address}
-                          </span>
+                            title={row.address}>{row.address}</span>
                         : <span style={{ color: "var(--muted)" }}>—</span>}
                     </td>
                     <td style={{ maxWidth: 160 }}>
@@ -305,9 +295,7 @@ export default function VendorList() {
                         ? <a href={`mailto:${row.email}`}
                             style={{ color: "var(--accent)", display: "block", overflow: "hidden",
                               textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160, fontSize: 12 }}
-                            title={row.email}>
-                            {row.email}
-                          </a>
+                            title={row.email}>{row.email}</a>
                         : <span style={{ color: "var(--muted)" }}>—</span>}
                     </td>
                     <td style={{ color: "var(--muted)" }}>{row.phone || "—"}</td>
