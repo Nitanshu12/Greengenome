@@ -12,27 +12,25 @@ router.get("/", requireLogin, async (req, res) => {
     const conditions = [];
 
     if (q) {
-      params.push(q.trim(), `%${q.trim()}%`);
-      conditions.push(
-        `(item_code ILIKE $${params.length - 1} OR name ILIKE $${params.length})`
-      );
+      params.push(`%${q.trim()}%`, `%${q.trim()}%`);
+      conditions.push(`(item_code LIKE ? OR name LIKE ?)`);
     }
     if (category) {
       params.push(category);
-      conditions.push(`category = $${params.length}`);
+      conditions.push(`category = ?`);
     }
     if (category2) {
       params.push(category2);
-      conditions.push(`category2 = $${params.length}`);
+      conditions.push(`category2 = ?`);
     }
     if (reusable !== undefined) {
-      params.push(reusable === "true");
-      conditions.push(`is_reusable = $${params.length}`);
+      params.push(reusable === "true" ? 1 : 0);
+      conditions.push(`is_reusable = ?`);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-    const { rows } = await pool.query(
-      `SELECT * FROM items ${where} ORDER BY (regexp_replace(item_code, '[^0-9]+', '', 'g'))::int ASC NULLS LAST, item_code ASC`,
+    const [rows] = await pool.query(
+      `SELECT * FROM items ${where} ORDER BY CAST(REGEXP_REPLACE(item_code, '[^0-9]+', '') AS UNSIGNED) ASC, item_code ASC`,
       params
     );
     res.json({ data: rows });
@@ -41,10 +39,10 @@ router.get("/", requireLogin, async (req, res) => {
   }
 });
 
-// ── GET /api/items/categories  (distinct category list) ──────
+// ── GET /api/items/categories ─────────────────────────────────
 router.get("/categories", requireLogin, async (req, res) => {
   try {
-    const { rows } = await pool.query(
+    const [rows] = await pool.query(
       "SELECT DISTINCT category FROM items WHERE category IS NOT NULL ORDER BY category"
     );
     res.json({ data: rows.map(r => r.category) });
@@ -53,10 +51,10 @@ router.get("/categories", requireLogin, async (req, res) => {
   }
 });
 
-// ── GET /api/items/categories2  (distinct category2 list) ────
+// ── GET /api/items/categories2 ────────────────────────────────
 router.get("/categories2", requireLogin, async (req, res) => {
   try {
-    const { rows } = await pool.query(
+    const [rows] = await pool.query(
       "SELECT DISTINCT category2 FROM items WHERE category2 IS NOT NULL ORDER BY category2"
     );
     res.json({ data: rows.map(r => r.category2) });
@@ -68,16 +66,16 @@ router.get("/categories2", requireLogin, async (req, res) => {
 // ── GET /api/items/next-code ──────────────────────────────────
 router.get("/next-code", requireLogin, async (req, res) => {
   try {
-    const { rows } = await pool.query(
+    const [rows] = await pool.query(
       `SELECT item_code FROM items
-       ORDER BY (regexp_replace(item_code, '[^0-9]+', '', 'g'))::int DESC NULLS LAST
+       ORDER BY CAST(REGEXP_REPLACE(item_code, '[^0-9]+', '') AS UNSIGNED) DESC
        LIMIT 1`
     );
     const lastCode = rows[0]?.item_code || "";
     const match = lastCode.match(/^(.*?)(\d+)$/);
-    const prefix = match ? match[1] : "ITM-";
+    const prefix  = match ? match[1] : "ITM-";
     const lastNum = match ? parseInt(match[2], 10) : 0;
-    const padLen = match ? match[2].length : 3;
+    const padLen  = match ? match[2].length : 3;
     const nextCode = prefix + String(lastNum + 1).padStart(padLen, "0");
     res.json({ next_code: nextCode });
   } catch (err) {
@@ -85,10 +83,10 @@ router.get("/next-code", requireLogin, async (req, res) => {
   }
 });
 
-// ── GET /api/items/:id ────────────────────────────────────────
-router.get("/:id", requireLogin, async (req, res) => {
+// ── GET /api/items/:item_code ─────────────────────────────────
+router.get("/:item_code", requireLogin, async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT * FROM items WHERE id = $1", [req.params.id]);
+    const [rows] = await pool.query("SELECT * FROM items WHERE item_code = ?", [req.params.item_code]);
     if (!rows.length) return res.status(404).json({ error: "Item not found" });
     res.json({ data: rows[0] });
   } catch (err) {
@@ -104,90 +102,84 @@ router.post("/", ...adminOnly, async (req, res) => {
       category, category2, sub_category, product_category, material,
       is_reusable = false,
       unit, unit_cost = 0, gst_percent = 0,
-      min_stock = 0, max_stock
+      min_stock = 0
     } = req.body;
 
     if (!item_code || !name || !category || !unit) {
       return res.status(400).json({ error: "item_code, name, category, and unit are required" });
     }
 
-    const { rows } = await pool.query(
+    await pool.query(
       `INSERT INTO items
         (item_code, name, specification, category, category2, sub_category,
-         product_category, material, is_reusable, unit, unit_cost, gst_percent,
-         min_stock, max_stock)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-       RETURNING *`,
+         product_category, material, is_reusable, unit, unit_cost, gst_percent, min_stock)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         item_code.trim(), name.trim(), specification || null,
         category, category2 || null, sub_category || null,
         product_category || null, material || null,
-        Boolean(is_reusable),
+        is_reusable ? 1 : 0,
         unit, Number(unit_cost), Number(gst_percent),
-        Number(min_stock), max_stock != null ? Number(max_stock) : null
+        Number(min_stock)
       ]
     );
+    const [rows] = await pool.query("SELECT * FROM items WHERE item_code = ?", [item_code.trim()]);
     res.status(201).json({ msg: "Item created", data: rows[0] });
   } catch (err) {
-    if (err.code === "23505") {
+    if (err.code === "ER_DUP_ENTRY") {
       return res.status(400).json({ error: "Item code already exists" });
     }
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── PUT /api/items/:id ────────────────────────────────────────
-router.put("/:id", ...adminOnly, async (req, res) => {
+// ── PUT /api/items/:item_code ─────────────────────────────────
+router.put("/:item_code", ...adminOnly, async (req, res) => {
   try {
     const {
-      item_code, name, specification,
+      name, specification,
       category, category2, sub_category, product_category, material,
       is_reusable,
       unit, unit_cost, gst_percent,
-      min_stock, max_stock
+      min_stock
     } = req.body;
 
-    if (!item_code || !name || !category || !unit) {
-      return res.status(400).json({ error: "item_code, name, category, and unit are required" });
+    if (!name || !category || !unit) {
+      return res.status(400).json({ error: "name, category, and unit are required" });
     }
 
-    const { rows } = await pool.query(
+    const [result] = await pool.query(
       `UPDATE items SET
-        item_code=$1, name=$2, specification=$3,
-        category=$4, category2=$5, sub_category=$6,
-        product_category=$7, material=$8, is_reusable=$9,
-        unit=$10, unit_cost=$11, gst_percent=$12,
-        min_stock=$13, max_stock=$14
-       WHERE id=$15
-       RETURNING *`,
+        name=?, specification=?,
+        category=?, category2=?, sub_category=?,
+        product_category=?, material=?, is_reusable=?,
+        unit=?, unit_cost=?, gst_percent=?,
+        min_stock=?
+       WHERE item_code=?`,
       [
-        item_code.trim(), name.trim(), specification || null,
+        name.trim(), specification || null,
         category, category2 || null, sub_category || null,
         product_category || null, material || null,
-        Boolean(is_reusable),
+        is_reusable ? 1 : 0,
         unit, Number(unit_cost), Number(gst_percent),
-        Number(min_stock), max_stock != null ? Number(max_stock) : null,
-        req.params.id
+        Number(min_stock),
+        req.params.item_code
       ]
     );
-    if (!rows.length) return res.status(404).json({ error: "Item not found" });
+    if (result.affectedRows === 0) return res.status(404).json({ error: "Item not found" });
+    const [rows] = await pool.query("SELECT * FROM items WHERE item_code = ?", [req.params.item_code]);
     res.json({ msg: "Item updated", data: rows[0] });
   } catch (err) {
-    if (err.code === "23505") {
-      return res.status(400).json({ error: "Item code already exists" });
-    }
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── DELETE /api/items/:id ─────────────────────────────────────
-router.delete("/:id", ...adminOnly, async (req, res) => {
+// ── DELETE /api/items/:item_code ──────────────────────────────
+router.delete("/:item_code", ...adminOnly, async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      "DELETE FROM items WHERE id=$1 RETURNING name",
-      [req.params.id]
-    );
+    const [rows] = await pool.query("SELECT name FROM items WHERE item_code = ?", [req.params.item_code]);
     if (!rows.length) return res.status(404).json({ error: "Item not found" });
+    await pool.query("DELETE FROM items WHERE item_code = ?", [req.params.item_code]);
     res.json({ msg: `Item "${rows[0].name}" deleted` });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -133,7 +133,7 @@ app.get("/health", (req, res) => {
   res.status(200).type("text").send("ok");
 });
 
-// ── NeonDB schema bootstrap ───────────────────────────────────
+// ── MariaDB schema bootstrap ──────────────────────────────────
 require("./db/initSchema")().catch(err => {
   console.error("Schema init error:", err.message || err.code || err);
 });

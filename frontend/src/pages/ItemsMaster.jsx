@@ -11,7 +11,7 @@ const EMPTY_FORM = {
   product_category: "", material: "",
   is_reusable: false,
   unit: "", unit_cost: "", gst_percent: "",
-  min_stock: "", max_stock: ""
+  min_stock: ""
 };
 
 function ItemFormModal({ initial, nextCode, onSave, onClose, saving, categories, categories2 }) {
@@ -137,19 +137,11 @@ function ItemFormModal({ initial, nextCode, onSave, onClose, saving, categories,
         </div>
 
         {/* ── Row 5: Stock levels ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div className="form-group">
-            <label className="form-label">Min Stock</label>
-            <input className="form-input" type="number" min="0"
-              value={form.min_stock}
-              onChange={e => set("min_stock", e.target.value)} placeholder="0" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Max Stock</label>
-            <input className="form-input" type="number" min="0"
-              value={form.max_stock}
-              onChange={e => set("max_stock", e.target.value)} placeholder="Optional" />
-          </div>
+        <div className="form-group">
+          <label className="form-label">Min Stock</label>
+          <input className="form-input" type="number" min="0"
+            value={form.min_stock}
+            onChange={e => set("min_stock", e.target.value)} placeholder="0" />
         </div>
 
         {/* ── Actions ── */}
@@ -220,7 +212,7 @@ export default function ItemsMaster() {
     setSaving(true);
     try {
       if (editTarget) {
-        await api.updateItem(editTarget.id, form);
+        await api.updateItem(editTarget.item_code, form);
         toast("Item updated");
       } else {
         await api.createItem(form);
@@ -239,7 +231,7 @@ export default function ItemsMaster() {
   const handleDelete = async (item) => {
     if (!confirm(`Delete "${item.name}"? This cannot be undone.`)) return;
     try {
-      const res = await api.deleteItem(item.id);
+      const res = await api.deleteItem(item.item_code);
       toast(res.msg);
       load();
     } catch (e) {
@@ -361,14 +353,13 @@ export default function ItemsMaster() {
                   <th>Unit Cost</th>
                   <th>GST %</th>
                   <th>Min Stock</th>
-                  <th>Max Stock</th>
                   <th>Reusable</th>
                   {isAdmin && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {pageItems.map((item, idx) => (
-                  <tr key={item.id}>
+                  <tr key={item.item_code}>
                     {/* <td style={{ color: "var(--muted)", fontSize: 12 }}>
                       {(page - 1) * PER_PAGE + idx + 1}
                     </td> */}
@@ -441,7 +432,6 @@ export default function ItemsMaster() {
                       {item.gst_percent > 0 ? `${item.gst_percent}%` : "—"}
                     </td>
                     <td style={{ color: "var(--muted)" }}>{item.min_stock ?? "—"}</td>
-                    <td style={{ color: "var(--muted)" }}>{item.max_stock ?? "—"}</td>
                     <td>
                       <span className={`tag ${item.is_reusable ? "tag-green" : "tag-gray"}`}>
                         {item.is_reusable ? "Yes" : "No"}
@@ -513,8 +503,7 @@ export default function ItemsMaster() {
             unit: editTarget.unit || "",
             unit_cost: editTarget.unit_cost ?? "",
             gst_percent: editTarget.gst_percent ?? "",
-            min_stock: editTarget.min_stock ?? "",
-            max_stock: editTarget.max_stock ?? ""
+            min_stock: editTarget.min_stock ?? ""
           } : null}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditTarget(null); }}

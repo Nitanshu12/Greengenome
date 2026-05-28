@@ -11,21 +11,19 @@ router.get("/", requireLogin, async (req, res) => {
     const params = [];
     let where = "";
     if (q) {
-      // $1 = exact (for codes), $2 = fuzzy (for names)
-      params.push(q.trim(), `%${q.trim()}%`);
-      where = `WHERE (i.item_code ILIKE $1 OR i.name ILIKE $2
-                   OR v.vendor_code ILIKE $1 OR v.business_name ILIKE $2)`;
+      params.push(`%${q.trim()}%`, `%${q.trim()}%`, `%${q.trim()}%`, `%${q.trim()}%`);
+      where = `WHERE (i.item_code LIKE ? OR i.name LIKE ? OR v.vendor_code LIKE ? OR v.business_name LIKE ?)`;
     }
-    const { rows } = await pool.query(
+    const [rows] = await pool.query(
       `SELECT iv.id,
               i.item_code, i.name AS item_name,
               v.vendor_code, v.business_name, v.address, v.email, v.phone, v.contact_person,
               iv.offer_price, iv.lead_time
        FROM item_vendors iv
-       JOIN items i   ON i.id = iv.item_id
+       JOIN items i   ON i.item_code = iv.item_code
        JOIN vendors v ON v.id = iv.vendor_id
        ${where}
-       ORDER BY (regexp_match(i.item_code, '\\d+'))[1]::int ASC, i.item_code ASC`,
+       ORDER BY CAST(REGEXP_SUBSTR(i.item_code, '[0-9]+') AS UNSIGNED) ASC, i.item_code ASC`,
       params
     );
     res.json({ data: rows });
@@ -36,65 +34,65 @@ router.get("/", requireLogin, async (req, res) => {
 
 // POST /api/vendors — upsert vendor + create item_vendor link
 router.post("/", ...adminOnly, async (req, res) => {
-  const client = await pool.connect();
+  const conn = await pool.getConnection();
   try {
     const {
-      item_id, vendor_code, business_name,
+      item_code, vendor_code, business_name,
       address, email, phone, contact_person,
       offer_price, lead_time
     } = req.body;
 
-    if (!item_id || !vendor_code || !business_name) {
-      return res.status(400).json({ error: "item_id, vendor_code, and business_name are required" });
+    if (!item_code || !vendor_code || !business_name) {
+      return res.status(400).json({ error: "item_code, vendor_code, and business_name are required" });
     }
 
-    await client.query("BEGIN");
+    await conn.beginTransaction();
 
-    const { rows: vRows } = await client.query(
+    // Upsert vendor
+    await conn.query(
       `INSERT INTO vendors (vendor_code, business_name, address, email, phone, contact_person)
-       VALUES ($1,$2,$3,$4,$5,$6)
-       ON CONFLICT (vendor_code) DO UPDATE SET
-         business_name   = EXCLUDED.business_name,
-         address         = EXCLUDED.address,
-         email           = EXCLUDED.email,
-         phone           = EXCLUDED.phone,
-         contact_person  = EXCLUDED.contact_person,
-         updated_at      = NOW()
-       RETURNING id`,
+       VALUES (?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+         business_name   = VALUES(business_name),
+         address         = VALUES(address),
+         email           = VALUES(email),
+         phone           = VALUES(phone),
+         contact_person  = VALUES(contact_person)`,
       [
         vendor_code.trim(), business_name.trim(),
         address || null, email || null, phone || null, contact_person || null
       ]
     );
-    const vendor_id = vRows[0].id;
+    const [[vendor]] = await conn.query("SELECT id FROM vendors WHERE vendor_code = ?", [vendor_code.trim()]);
+    const vendor_id = vendor.id;
 
-    const { rows } = await client.query(
-      `INSERT INTO item_vendors (item_id, vendor_id, offer_price, lead_time)
-       VALUES ($1,$2,$3,$4)
-       RETURNING id`,
+    const [result] = await conn.query(
+      `INSERT INTO item_vendors (item_code, vendor_id, offer_price, lead_time)
+       VALUES (?,?,?,?)`,
       [
-        Number(item_id), vendor_id,
+        item_code,
+        vendor_id,
         offer_price !== "" && offer_price != null ? Number(offer_price) : null,
         lead_time || null
       ]
     );
 
-    await client.query("COMMIT");
-    res.status(201).json({ msg: "Vendor link created", id: rows[0].id });
+    await conn.commit();
+    res.status(201).json({ msg: "Vendor link created", id: result.insertId });
   } catch (err) {
-    await client.query("ROLLBACK");
-    if (err.code === "23505") {
+    await conn.rollback();
+    if (err.code === "ER_DUP_ENTRY") {
       return res.status(400).json({ error: "This item-vendor combination already exists" });
     }
     res.status(500).json({ error: err.message });
   } finally {
-    client.release();
+    conn.release();
   }
 });
 
 // PUT /api/vendors/:id — update vendor info + offer_price + lead_time
 router.put("/:id", ...adminOnly, async (req, res) => {
-  const client = await pool.connect();
+  const conn = await pool.getConnection();
   try {
     const {
       vendor_code, business_name,
@@ -106,32 +104,30 @@ router.put("/:id", ...adminOnly, async (req, res) => {
       return res.status(400).json({ error: "vendor_code and business_name are required" });
     }
 
-    await client.query("BEGIN");
+    await conn.beginTransaction();
 
-    const { rows: ivRows } = await client.query(
-      "SELECT vendor_id FROM item_vendors WHERE id=$1",
+    const [[ivRow]] = await conn.query(
+      "SELECT vendor_id FROM item_vendors WHERE id = ?",
       [req.params.id]
     );
-    if (!ivRows.length) {
-      await client.query("ROLLBACK");
+    if (!ivRow) {
+      await conn.rollback();
       return res.status(404).json({ error: "Vendor link not found" });
     }
-    const vendor_id = ivRows[0].vendor_id;
 
-    await client.query(
+    await conn.query(
       `UPDATE vendors
-       SET vendor_code=$1, business_name=$2, address=$3,
-           email=$4, phone=$5, contact_person=$6, updated_at=NOW()
-       WHERE id=$7`,
+       SET vendor_code=?, business_name=?, address=?, email=?, phone=?, contact_person=?
+       WHERE id=?`,
       [
         vendor_code.trim(), business_name.trim(),
         address || null, email || null, phone || null, contact_person || null,
-        vendor_id
+        ivRow.vendor_id
       ]
     );
 
-    await client.query(
-      "UPDATE item_vendors SET offer_price=$1, lead_time=$2 WHERE id=$3",
+    await conn.query(
+      "UPDATE item_vendors SET offer_price=?, lead_time=? WHERE id=?",
       [
         offer_price !== "" && offer_price != null ? Number(offer_price) : null,
         lead_time || null,
@@ -139,27 +135,27 @@ router.put("/:id", ...adminOnly, async (req, res) => {
       ]
     );
 
-    await client.query("COMMIT");
+    await conn.commit();
     res.json({ msg: "Vendor link updated" });
   } catch (err) {
-    await client.query("ROLLBACK");
-    if (err.code === "23505") {
+    await conn.rollback();
+    if (err.code === "ER_DUP_ENTRY") {
       return res.status(400).json({ error: "Vendor code already used by another vendor" });
     }
     res.status(500).json({ error: err.message });
   } finally {
-    client.release();
+    conn.release();
   }
 });
 
 // DELETE /api/vendors/:id — remove item_vendor link only
 router.delete("/:id", ...adminOnly, async (req, res) => {
   try {
-    const { rows } = await pool.query(
-      "DELETE FROM item_vendors WHERE id=$1 RETURNING id",
+    const [result] = await pool.query(
+      "DELETE FROM item_vendors WHERE id = ?",
       [req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ error: "Vendor link not found" });
+    if (result.affectedRows === 0) return res.status(404).json({ error: "Vendor link not found" });
     res.json({ msg: "Vendor link removed" });
   } catch (err) {
     res.status(500).json({ error: err.message });

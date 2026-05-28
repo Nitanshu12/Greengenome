@@ -10,7 +10,11 @@ module.exports = {
       max_memory_restart: "300M",
       env: {
         NODE_ENV: "production",
-        PORT: 4000
+        PORT: 4000,
+        DB_HOST: "localhost",
+        DB_USER: "info_gguser",
+        DB_PASSWORD: "YOUR_DB_PASSWORD_HERE",
+        DB_NAME: "info_inventory"
       },
       error_file: "/var/log/dashboard/error.log",
       out_file:   "/var/log/dashboard/out.log",

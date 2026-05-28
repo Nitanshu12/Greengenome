@@ -4,7 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/Toast";
 
 const EMPTY_FORM = {
-  item_id: "",
+  item_code: "",
   vendor_code: "",
   business_name: "",
   address: "",
@@ -34,11 +34,11 @@ function VendorFormModal({ initial, onSave, onClose, saving, items }) {
         {!initial && (
           <div className="form-group">
             <label className="form-label">Item *</label>
-            <select className="form-select" value={form.item_id}
-              onChange={e => set("item_id", e.target.value)}>
+            <select className="form-select" value={form.item_code}
+              onChange={e => set("item_code", e.target.value)}>
               <option value="">Select item</option>
               {items.map(it => (
-                <option key={it.id} value={it.id}>
+                <option key={it.item_code} value={it.item_code}>
                   {it.item_code} — {it.name}
                 </option>
               ))}
@@ -154,7 +154,7 @@ export default function VendorList() {
   }, []);
 
   const handleSave = async (form) => {
-    if (!editTarget && !form.item_id) {
+    if (!editTarget && !form.item_code) {
       toast("Please select an item", "error"); return;
     }
     if (!form.vendor_code.trim() || !form.business_name.trim()) {
@@ -163,7 +163,7 @@ export default function VendorList() {
     setSaving(true);
     try {
       if (editTarget) {
-        await api.updateVendor(editTarget.id, form);
+        await api.updateVendor(editTarget.id, form);  // id here is item_vendors.id (int), not items.id
         toast("Vendor link updated");
       } else {
         await api.createVendor(form);
@@ -258,7 +258,7 @@ export default function VendorList() {
               </thead>
               <tbody>
                 {pageRows.map((row, idx) => (
-                  <tr key={row.id}>
+                  <tr key={`${row.item_code}-${row.vendor_code}`}>
                     {/* <td style={{ color: "var(--muted)", fontSize: 12 }}>
                       {(page - 1) * PER_PAGE + idx + 1}
                     </td> */}
