@@ -7,7 +7,7 @@ const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
 // ── GET /api/items  (search + filter) ────────────────────────
 router.get("/", requireLogin, async (req, res) => {
   try {
-    const { q = "", category = "", category2 = "", reusable } = req.query;
+    const { q = "", category = "" } = req.query;
     const params = [];
     const conditions = [];
 
@@ -18,14 +18,6 @@ router.get("/", requireLogin, async (req, res) => {
     if (category) {
       params.push(category);
       conditions.push(`category = ?`);
-    }
-    if (category2) {
-      params.push(category2);
-      conditions.push(`category2 = ?`);
-    }
-    if (reusable !== undefined) {
-      params.push(reusable === "true" ? 1 : 0);
-      conditions.push(`is_reusable = ?`);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -99,8 +91,7 @@ router.post("/", ...adminOnly, async (req, res) => {
   try {
     const {
       item_code, name, specification,
-      category, category2, sub_category, product_category, material,
-      is_reusable = false,
+      category, product_category, material, brand,
       unit, unit_cost = 0, gst_percent = 0,
       min_stock = 0
     } = req.body;
@@ -111,14 +102,14 @@ router.post("/", ...adminOnly, async (req, res) => {
 
     await pool.query(
       `INSERT INTO items
-        (item_code, name, specification, category, category2, sub_category,
-         product_category, material, is_reusable, unit, unit_cost, gst_percent, min_stock)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        (item_code, name, specification, category,
+         product_category, material, brand,
+         unit, unit_cost, gst_percent, min_stock)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
       [
         item_code.trim(), name.trim(), specification || null,
-        category, category2 || null, sub_category || null,
-        product_category || null, material || null,
-        is_reusable ? 1 : 0,
+        category,
+        product_category || null, material || null, brand || null,
         unit, Number(unit_cost), Number(gst_percent),
         Number(min_stock)
       ]
@@ -138,8 +129,7 @@ router.put("/:item_code", ...adminOnly, async (req, res) => {
   try {
     const {
       name, specification,
-      category, category2, sub_category, product_category, material,
-      is_reusable,
+      category, product_category, material, brand,
       unit, unit_cost, gst_percent,
       min_stock
     } = req.body;
@@ -151,16 +141,13 @@ router.put("/:item_code", ...adminOnly, async (req, res) => {
     const [result] = await pool.query(
       `UPDATE items SET
         name=?, specification=?,
-        category=?, category2=?, sub_category=?,
-        product_category=?, material=?, is_reusable=?,
+        category=?, product_category=?, material=?, brand=?,
         unit=?, unit_cost=?, gst_percent=?,
         min_stock=?
        WHERE item_code=?`,
       [
         name.trim(), specification || null,
-        category, category2 || null, sub_category || null,
-        product_category || null, material || null,
-        is_reusable ? 1 : 0,
+        category, product_category || null, material || null, brand || null,
         unit, Number(unit_cost), Number(gst_percent),
         Number(min_stock),
         req.params.item_code

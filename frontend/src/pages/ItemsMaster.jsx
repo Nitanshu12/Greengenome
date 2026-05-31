@@ -7,14 +7,11 @@ const UNITS = ["Piece", "Box", "Pack", "Strip", "Vial", "Bottle", "Roll", "Pair"
 
 const EMPTY_FORM = {
   item_code: "", name: "", specification: "",
-  category: "", category2: "", sub_category: "",
-  product_category: "", material: "",
-  is_reusable: false,
-  unit: "", unit_cost: "", gst_percent: "",
-  min_stock: ""
+  category: "", product_category: "", material: "", brand: "",
+  unit: "", unit_cost: "", gst_percent: "", min_stock: ""
 };
 
-function ItemFormModal({ initial, nextCode, onSave, onClose, saving, categories, categories2 }) {
+function ItemFormModal({ initial, nextCode, onSave, onClose, saving, categories }) {
   const [form, setForm] = useState(() => {
     if (initial) return initial;
     return { ...EMPTY_FORM, item_code: nextCode || "" };
@@ -64,28 +61,15 @@ function ItemFormModal({ initial, nextCode, onSave, onClose, saving, categories,
             style={{ resize: "vertical" }} />
         </div>
 
-        {/* ── Row 2: Category grid ── */}
+        {/* ── Row 2: Industry Type + Product Category ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div className="form-group">
-            <label className="form-label">Category *</label>
+            <label className="form-label">Industry Type *</label>
             <select className="form-select" value={form.category}
               onChange={e => set("category", e.target.value)}>
-              <option value="">Select category</option>
+              <option value="">Select industry type</option>
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Category 2</label>
-            <select className="form-select" value={form.category2}
-              onChange={e => set("category2", e.target.value)}>
-              <option value="">Select category 2</option>
-              {categories2.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Sub Category</label>
-            <input className="form-input" value={form.sub_category}
-              onChange={e => set("sub_category", e.target.value)} placeholder="Optional" />
           </div>
           <div className="form-group">
             <label className="form-label">Product Category</label>
@@ -94,21 +78,17 @@ function ItemFormModal({ initial, nextCode, onSave, onClose, saving, categories,
           </div>
         </div>
 
-        {/* ── Row 3: Material + Reusable ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, alignItems: "end" }}>
+        {/* ── Row 3: Material + Brand ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div className="form-group">
             <label className="form-label">Material</label>
             <input className="form-input" value={form.material}
               onChange={e => set("material", e.target.value)} placeholder="e.g. Stainless Steel" />
           </div>
           <div className="form-group">
-            <label className="form-label" style={{ marginBottom: 10 }}>Reusable?</label>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input type="checkbox" checked={form.is_reusable}
-                onChange={e => set("is_reusable", e.target.checked)}
-                style={{ width: 16, height: 16, accentColor: "var(--accent)" }} />
-              <span style={{ fontSize: 13, color: "var(--muted)" }}>Yes, reusable</span>
-            </label>
+            <label className="form-label">Brand (Special Kit)</label>
+            <input className="form-input" value={form.brand}
+              onChange={e => set("brand", e.target.value)} placeholder="Optional" />
           </div>
         </div>
 
@@ -136,7 +116,7 @@ function ItemFormModal({ initial, nextCode, onSave, onClose, saving, categories,
           </div>
         </div>
 
-        {/* ── Row 5: Stock levels ── */}
+        {/* ── Row 5: Min Stock ── */}
         <div className="form-group">
           <label className="form-label">Min Stock</label>
           <input className="form-input" type="number" min="0"
@@ -166,7 +146,6 @@ export default function ItemsMaster() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("");
-  const [filterCat2, setFilterCat2] = useState("");
   const [page, setPage] = useState(1);
   const PER_PAGE = 15;
 
@@ -175,13 +154,8 @@ export default function ItemsMaster() {
   const [saving, setSaving] = useState(false);
   const [nextItemCode, setNextItemCode] = useState("");
 
-  // Derive distinct category & category2 values from all items (no filter applied)
   const categories = useMemo(() =>
     [...new Set(allItems.map(i => i.category).filter(Boolean))].sort(),
-    [allItems]
-  );
-  const categories2 = useMemo(() =>
-    [...new Set(allItems.map(i => i.category2).filter(Boolean))].sort(),
     [allItems]
   );
 
@@ -190,8 +164,7 @@ export default function ItemsMaster() {
     const params = new URLSearchParams();
     if (search) params.set("q", search);
     if (filterCat) params.set("category", filterCat);
-    if (filterCat2) params.set("category2", filterCat2);
-    const isFiltered = search || filterCat || filterCat2;
+    const isFiltered = search || filterCat;
     api.getItems(params.toString())
       .then(d => {
         setItems(d.data);
@@ -200,13 +173,13 @@ export default function ItemsMaster() {
       })
       .catch(e => toast(e.message, "error"))
       .finally(() => setLoading(false));
-  }, [search, filterCat, filterCat2]);
+  }, [search, filterCat]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleSave = async (form) => {
     if (!form.name.trim() || !form.category || !form.unit) {
-      toast("Name, category, and unit are required", "error");
+      toast("Name, industry type, and unit are required", "error");
       return;
     }
     setSaving(true);
@@ -255,7 +228,6 @@ export default function ItemsMaster() {
     setShowForm(true);
   };
 
-  // Pagination
   const totalPages = Math.max(1, Math.ceil(items.length / PER_PAGE));
   const pageItems = items.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
@@ -269,6 +241,13 @@ export default function ItemsMaster() {
     return <span className={`tag ${cls}`}>{cat}</span>;
   };
 
+  const truncCell = (val, maxWidth = 160) =>
+    val
+      ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
+          whiteSpace: "nowrap", maxWidth, fontSize: 12, color: "var(--muted)" }}
+          title={val}>{val}</span>
+      : <span style={{ color: "var(--muted)" }}>—</span>;
+
   return (
     <>
       {/* ── Page Header ── */}
@@ -278,16 +257,12 @@ export default function ItemsMaster() {
           <div className="page-sub">{items.length} items in database</div>
         </div>
         {isAdmin && (
-          <button className="btn btn-primary" onClick={openAdd}>
-            + Add Item
-          </button>
+          <button className="btn btn-primary" onClick={openAdd}>+ Add Item</button>
         )}
       </div>
 
       {/* ── Filters ── */}
-      <div style={{
-        display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap"
-      }}>
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
         <input
           className="form-input"
           style={{ maxWidth: 300 }}
@@ -301,21 +276,12 @@ export default function ItemsMaster() {
           value={filterCat}
           onChange={e => setFilterCat(e.target.value)}
         >
-          <option value="">All Categories</option>
+          <option value="">All Industry Types</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        {/* <select
-          className="form-select"
-          style={{ maxWidth: 200 }}
-          value={filterCat2}
-          onChange={e => setFilterCat2(e.target.value)}
-        >
-          <option value="">All Category 2</option>
-          {categories2.map(c => <option key={c} value={c}>{c}</option>)}
-        </select> */}
-        {(search || filterCat || filterCat2) && (
+        {(search || filterCat) && (
           <button className="btn btn-ghost btn-sm"
-            onClick={() => { setSearch(""); setFilterCat(""); setFilterCat2(""); }}>
+            onClick={() => { setSearch(""); setFilterCat(""); }}>
             Clear
           </button>
         )}
@@ -340,29 +306,23 @@ export default function ItemsMaster() {
             <table>
               <thead>
                 <tr>
-                  {/* <th>#</th> */}
                   <th>Item Code</th>
                   <th>Name</th>
                   <th>Specification</th>
-                  <th>Category</th>
-                  <th>Category 2</th>
-                  <th>Sub Category</th>
+                  <th>Industry Type</th>
                   <th>Product Category</th>
                   <th>Material</th>
+                  <th>Brand (Special Kit)</th>
                   <th>Unit</th>
                   <th>Unit Cost</th>
                   <th>GST %</th>
                   <th>Min Stock</th>
-                  <th>Reusable</th>
                   {isAdmin && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
-                {pageItems.map((item, idx) => (
+                {pageItems.map((item) => (
                   <tr key={item.item_code}>
-                    {/* <td style={{ color: "var(--muted)", fontSize: 12 }}>
-                      {(page - 1) * PER_PAGE + idx + 1}
-                    </td> */}
                     <td>
                       <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12,
                         background: "var(--border)", padding: "2px 6px", borderRadius: 4 }}>
@@ -375,77 +335,26 @@ export default function ItemsMaster() {
                         {item.name}
                       </div>
                     </td>
-                    <td style={{ maxWidth: 180 }}>
-                      {item.specification
-                        ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
-                            whiteSpace: "nowrap", maxWidth: 180, fontSize: 12, color: "var(--muted)" }}
-                            title={item.specification}>
-                            {item.specification}
-                          </span>
-                        : <span style={{ color: "var(--muted)" }}>—</span>}
-                    </td>
+                    <td>{truncCell(item.specification, 180)}</td>
                     <td>{categoryTag(item.category)}</td>
-                    <td style={{ maxWidth: 140 }}>
-                      {item.category2
-                        ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
-                            whiteSpace: "nowrap", maxWidth: 140, fontSize: 12 }}
-                            title={item.category2}>
-                            {item.category2}
-                          </span>
-                        : <span style={{ color: "var(--muted)" }}>—</span>}
-                    </td>
-                    <td style={{ maxWidth: 140 }}>
-                      {item.sub_category
-                        ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
-                            whiteSpace: "nowrap", maxWidth: 140, fontSize: 12 }}
-                            title={item.sub_category}>
-                            {item.sub_category}
-                          </span>
-                        : <span style={{ color: "var(--muted)" }}>—</span>}
-                    </td>
-                    <td style={{ maxWidth: 140 }}>
-                      {item.product_category
-                        ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
-                            whiteSpace: "nowrap", maxWidth: 140, fontSize: 12 }}
-                            title={item.product_category}>
-                            {item.product_category}
-                          </span>
-                        : <span style={{ color: "var(--muted)" }}>—</span>}
-                    </td>
-                    <td style={{ maxWidth: 130 }}>
-                      {item.material
-                        ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
-                            whiteSpace: "nowrap", maxWidth: 130, fontSize: 12 }}
-                            title={item.material}>
-                            {item.material}
-                          </span>
-                        : <span style={{ color: "var(--muted)" }}>—</span>}
-                    </td>
+                    <td>{truncCell(item.product_category, 140)}</td>
+                    <td>{truncCell(item.material, 130)}</td>
+                    <td>{truncCell(item.brand, 140)}</td>
                     <td style={{ color: "var(--muted)" }}>{item.unit}</td>
                     <td>
                       {item.unit_cost > 0
                         ? <span>₹{Number(item.unit_cost).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
-                        : <span style={{ color: "var(--muted)" }}>—</span>
-                      }
+                        : <span style={{ color: "var(--muted)" }}>—</span>}
                     </td>
                     <td style={{ color: "var(--muted)" }}>
                       {item.gst_percent > 0 ? `${item.gst_percent}%` : "—"}
                     </td>
                     <td style={{ color: "var(--muted)" }}>{item.min_stock ?? "—"}</td>
-                    <td>
-                      <span className={`tag ${item.is_reusable ? "tag-green" : "tag-gray"}`}>
-                        {item.is_reusable ? "Yes" : "No"}
-                      </span>
-                    </td>
                     {isAdmin && (
                       <td>
                         <div className="flex gap-2">
-                          <button className="btn btn-ghost btn-sm" onClick={() => openEdit(item)}>
-                            Edit
-                          </button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item)}>
-                            Delete
-                          </button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => openEdit(item)}>Edit</button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item)}>Delete</button>
                         </div>
                       </td>
                     )}
@@ -491,25 +400,22 @@ export default function ItemsMaster() {
         <ItemFormModal
           nextCode={nextItemCode}
           initial={editTarget ? {
-            item_code: editTarget.item_code || "",
-            name: editTarget.name || "",
-            specification: editTarget.specification || "",
-            category: editTarget.category || "",
-            category2: editTarget.category2 || "",
-            sub_category: editTarget.sub_category || "",
+            item_code:        editTarget.item_code        || "",
+            name:             editTarget.name             || "",
+            specification:    editTarget.specification    || "",
+            category:         editTarget.category         || "",
             product_category: editTarget.product_category || "",
-            material: editTarget.material || "",
-            is_reusable: editTarget.is_reusable || false,
-            unit: editTarget.unit || "",
-            unit_cost: editTarget.unit_cost ?? "",
-            gst_percent: editTarget.gst_percent ?? "",
-            min_stock: editTarget.min_stock ?? ""
+            material:         editTarget.material         || "",
+            brand:            editTarget.brand            || "",
+            unit:             editTarget.unit             || "",
+            unit_cost:        editTarget.unit_cost        ?? "",
+            gst_percent:      editTarget.gst_percent      ?? "",
+            min_stock:        editTarget.min_stock        ?? ""
           } : null}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditTarget(null); }}
           saving={saving}
           categories={categories}
-          categories2={categories2}
         />
       )}
     </>
