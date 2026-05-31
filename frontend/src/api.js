@@ -63,6 +63,12 @@ export const api = {
   updateVendor:   (id, body)    => request("PUT",    `/vendors/${id}`, body),
   deleteVendor:   (id)          => request("DELETE", `/vendors/${id}`),
 
+  // BOM Disaster
+  getBom:       (params = "") => request("GET",    `/bom-disaster${params ? "?" + params : ""}`),
+  createBom:    (body)        => request("POST",   "/bom-disaster", body),
+  updateBom:    (code, body)  => request("PUT",    `/bom-disaster/${encodeURIComponent(code)}`, body),
+  deleteBom:    (code)        => request("DELETE", `/bom-disaster/${encodeURIComponent(code)}`),
+
   // Admin — users
   getUsers:       ()      => request("GET",   "/admin/users"),
   createUser:     (body)  => request("POST",  "/admin/users", body),

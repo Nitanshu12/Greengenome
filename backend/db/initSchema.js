@@ -54,6 +54,16 @@ async function initSchema() {
       ALTER TABLE items ADD COLUMN IF NOT EXISTS brand VARCHAR(200) DEFAULT NULL
     `);
 
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS bom_disaster (
+        item_code    VARCHAR(50) PRIMARY KEY,
+        item_name    VARCHAR(500) NOT NULL,
+        required_qty INT NOT NULL DEFAULT 0,
+        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB
+    `);
+
     console.log("✅ MariaDB schema ready");
   } catch (err) {
     console.error("❌ MariaDB schema init failed:", err.message);
