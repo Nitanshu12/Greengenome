@@ -52,6 +52,11 @@ async function initSchema() {
       ) ENGINE=InnoDB
     `);
 
+    // Add brand column if it doesn't exist yet (safe to re-run)
+    await conn.query(`
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS brand VARCHAR(200) DEFAULT NULL
+    `);
+
     console.log("✅ MariaDB schema ready");
   } catch (err) {
     console.error("❌ MariaDB schema init failed:", err.message);
