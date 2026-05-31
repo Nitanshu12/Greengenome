@@ -14,6 +14,26 @@ const pool = mysql.createPool({
 
 const EXCEL_PATH = process.env.ITEMS_XLSX || "/Users/nitanshugoyal/Downloads/ITEM LIST.xlsx";
 
+// Strips invisible Unicode formatting characters that MySQL rejects.
+// Checks character codes numerically — reliable on any machine, no hidden chars.
+// Removes: U+200B-200F (zero-width/direction marks), U+202A-202E (direction controls),
+//          U+FEFF (byte-order mark), U+00AD (soft hyphen)
+function cleanStr(raw) {
+  return String(raw || "")
+    .split("")
+    .filter(ch => {
+      const c = ch.charCodeAt(0);
+      return !(
+        (c >= 0x200B && c <= 0x200F) ||
+        (c >= 0x202A && c <= 0x202E) ||
+        c === 0xFEFF ||
+        c === 0x00AD
+      );
+    })
+    .join("")
+    .trim() || null;
+}
+
 function normalizeUnit(raw) {
   const u = String(raw || "").trim().toLowerCase();
   if (!u) return "Piece";
@@ -62,11 +82,11 @@ async function seed() {
 
       if (!item_code || !name) { skipped++; continue; }
 
-      const category         = String(row["Industry Type"]         || "Other").trim() || "Other";
-      const product_category = String(row["Product Category"]      || "").trim() || null;
-      const material         = String(row["Material"]              || "").trim() || null;
-      const specification    = String(row["SPECIFICATION"]         || "").trim() || null;
-      const brand            = String(row["BRAND FOR SPECIAL KIT"] || "").trim() || null;
+      const category         = cleanStr(row["Industry Type"])         || "Other";
+      const product_category = cleanStr(row["Product Category"]);
+      const material         = cleanStr(row["Material"]);
+      const specification    = cleanStr(row["SPECIFICATION"]);
+      const brand            = cleanStr(row["BRAND FOR SPECIAL KIT"]);
       const unit             = normalizeUnit(row["UOM"]);
       const unit_cost        = parseFloat(row["Unit Cost"])  || 0;
       const gst_percent      = parseFloat(row["GST %"])      || 0;
