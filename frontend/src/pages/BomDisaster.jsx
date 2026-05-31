@@ -169,21 +169,16 @@ export default function BomDisaster() {
               </thead>
               <tbody>
                 {pageRows.map((row, idx) => (
-                  <tr key={row.item_code}>
+                  <tr>
                     {/* <td style={{ color: "var(--muted)", fontSize: 12 }}>
                       {(page - 1) * PER_PAGE + idx + 1}
                     </td> */}
+                    <td style={{ fontWeight: 500 }}>{row.item_name}</td>
                     <td>
                       <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12,
                         background: "var(--border)", padding: "2px 6px", borderRadius: 4 }}>
                         {row.item_code}
                       </span>
-
-                    </td>
-                    <td>
-                      <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12,
-                        background: "var(--border)", padding: "2px 6px", borderRadius: 4 }}
-                        >{row.item_name}</span>
                     </td>
                     <td style={{ fontWeight: 600 }}>
                       {Number(row.required_qty).toLocaleString("en-IN")}

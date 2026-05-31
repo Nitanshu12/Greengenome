@@ -15,7 +15,7 @@ router.get("/", requireLogin, async (req, res) => {
       where = `WHERE (item_code LIKE ? OR item_name LIKE ?)`;
     }
     const [rows] = await pool.query(
-      `SELECT item_code, item_name, required_qty FROM bom_disaster ${where} ORDER BY item_code ASC`,
+      `SELECT item_code, item_name, required_qty FROM bom_disaster ${where} ORDER BY CAST(REGEXP_SUBSTR(item_code, '[0-9]+') AS UNSIGNED) ASC`,
       params
     );
     res.json({ data: rows });
