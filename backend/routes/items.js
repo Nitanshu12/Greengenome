@@ -44,16 +44,16 @@ router.get("/categories", requireLogin, async (req, res) => {
 });
 
 // ── GET /api/items/categories2 ────────────────────────────────
-router.get("/categories2", requireLogin, async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      "SELECT DISTINCT category2 FROM items WHERE category2 IS NOT NULL ORDER BY category2"
-    );
-    res.json({ data: rows.map(r => r.category2) });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// router.get("/categories2", requireLogin, async (req, res) => {
+//   try {
+//     const [rows] = await pool.query(
+//       "SELECT DISTINCT category2 FROM items WHERE category2 IS NOT NULL ORDER BY category2"
+//     );
+//     res.json({ data: rows.map(r => r.category2) });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 // ── GET /api/items/next-code ──────────────────────────────────
 router.get("/next-code", requireLogin, async (req, res) => {

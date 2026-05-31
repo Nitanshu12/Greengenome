@@ -24,14 +24,6 @@ mongoose.connect(MONGO_URI)
     
     const User = require("./models/User");
     const exists = await User.findOne({ username: "admin" });
-    if (!exists) {
-      await User.create({
-        username: "admin",
-        password: "admin123",
-        role: "admin"
-      });
-      console.log("✅ Default admin created → username: admin | password: admin123");
-    }
   })
   .catch(err => {
     console.error("❌ MongoDB connection failed:", err.message);
