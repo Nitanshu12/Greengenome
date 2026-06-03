@@ -433,7 +433,7 @@ export default function LandingPage() {
           <h2>Gallery</h2>
         </div>
         <div className="gallery-grid">
-          {["static/images/a1.png", "static/images/a2.png", "static/images/a3.png", "static/images/a4.png"].map((src, i) => (
+          {["/images/a1.png", "/images/a2.png", "/images/a3.png", "/images/a4.png"].map((src, i) => (
             <img key={i} src={src} className="gallery-img" alt={`gallery-${i}`} />
           ))}
         </div>
