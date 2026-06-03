@@ -141,6 +141,17 @@ app.use("/api",         require("./routes/kits"));
 
 
 
+// ── Serve React frontend (production) ────────────────────────
+if (isProd) {
+  const distPath = path.join(__dirname, "../frontend/dist");
+  app.use(express.static(distPath, { maxAge: "7d", etag: true }));
+  // SPA fallback — serve index.html for any non-API route
+  app.get("*", (req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+}
+
 // ── Global error handler ──────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error("Server error:", err.message);
