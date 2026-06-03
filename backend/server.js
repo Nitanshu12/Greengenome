@@ -144,10 +144,15 @@ app.use("/api",         require("./routes/kits"));
 // ── Serve React frontend (production) ────────────────────────
 if (isProd) {
   const distPath = path.join(__dirname, "../frontend/dist");
-  app.use(express.static(distPath, { maxAge: "7d", etag: true }));
-  // SPA fallback — serve index.html for any non-API route
+  // Serve JS/CSS/images with long cache (hashed filenames make it safe)
+  // index: false so index.html is NOT served here — it goes to the fallback below
+  app.use(express.static(distPath, { maxAge: "7d", etag: true, index: false }));
+  // SPA fallback — always serve index.html with no-cache so browsers never
+  // hold a stale copy that points to old JS bundles
   app.get("*", (req, res) => {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     res.sendFile(path.join(distPath, "index.html"));
   });
 }
