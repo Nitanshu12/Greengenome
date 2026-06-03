@@ -8,6 +8,7 @@ const NAV = [
   { to: "/packages",      icon: "📦", label: "Kits Information" },
   { to: "/items-master",  icon: "🗂", label: "Items Master" },
   { to: "/vendor-list",   icon: "🏪", label: "Vendor List" },
+  { to: "/item-vendors",  icon: "🔗", label: "Item — Vendors" },
   { to: "/bom-disaster",  icon: "📋", label: "BOM — Disaster" },
 ];
 

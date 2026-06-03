@@ -5,8 +5,7 @@ async function initSchema() {
   try {
     await conn.query(`
       CREATE TABLE IF NOT EXISTS vendors (
-        id             INT AUTO_INCREMENT PRIMARY KEY,
-        vendor_code    VARCHAR(50) UNIQUE NOT NULL,
+        vendor_code    VARCHAR(50) PRIMARY KEY,
         business_name  VARCHAR(300) NOT NULL,
         address        TEXT,
         email          VARCHAR(200),
@@ -37,15 +36,14 @@ async function initSchema() {
 
     await conn.query(`
       CREATE TABLE IF NOT EXISTS item_vendors (
-        id          INT AUTO_INCREMENT PRIMARY KEY,
         item_code   VARCHAR(50) NOT NULL,
-        vendor_id   INT NOT NULL,
+        vendor_code VARCHAR(50) NOT NULL,
         offer_price DECIMAL(12,2),
         lead_time   VARCHAR(100),
         created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_item_vendor (item_code, vendor_id),
+        PRIMARY KEY (item_code, vendor_code),
         FOREIGN KEY (item_code) REFERENCES items(item_code) ON DELETE CASCADE,
-        FOREIGN KEY (vendor_id) REFERENCES vendors(id) ON DELETE CASCADE
+        FOREIGN KEY (vendor_code) REFERENCES vendors(vendor_code) ON DELETE CASCADE
       ) ENGINE=InnoDB
     `);
 
@@ -64,6 +62,26 @@ async function initSchema() {
       ) ENGINE=InnoDB
     `);
 
+    // ── Extend item_vendors with full relationship fields ─────────
+    await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS is_preferred        TINYINT(1)   NOT NULL DEFAULT 0`);
+    await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS min_order_qty       INT          DEFAULT NULL`);
+    await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS payment_terms       VARCHAR(200) DEFAULT NULL`);
+    await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS contract_start_date DATE         DEFAULT NULL`);
+    await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS vendor_rating       DECIMAL(3,1) DEFAULT NULL`);
+    await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS remarks             TEXT         DEFAULT NULL`);
+    await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS status            VARCHAR(50) DEFAULT 'active'`);
+
+    // ── Vendor documents (multiple PDFs / links per vendor) ───────
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS vendor_documents (
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        vendor_code   VARCHAR(50)  NOT NULL,
+        document_name VARCHAR(200) NOT NULL,
+        document_url  TEXT         NOT NULL,
+        created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (vendor_code) REFERENCES vendors(vendor_code) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
     console.log("✅ MariaDB schema ready");
   } catch (err) {
     console.error("❌ MariaDB schema init failed:", err.message);

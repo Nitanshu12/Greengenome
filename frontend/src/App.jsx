@@ -2,12 +2,14 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
+import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import Packages from "./pages/Packages";
 import AdminUpload from "./pages/AdminUpload";
 import AdminUsers from "./pages/AdminUsers";
 import ItemsMaster from "./pages/ItemsMaster";
 import VendorList from "./pages/VendorList";
+import ItemVendors from "./pages/ItemVendors";
 import BomDisaster from "./pages/BomDisaster";
 
 function RequireAuth({ children, adminOnly = false }) {
@@ -23,20 +25,23 @@ export default function App() {
 
   return (
     <Routes>
+      {/* Public landing page */}
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
 
-      <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
-        <Route index element={<Navigate to="/dashboard" />} />
+      {/* Protected app routes — same paths as before */}
+      <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="packages" element={<Packages />} />
         <Route path="items-master" element={<ItemsMaster />} />
         <Route path="vendor-list"   element={<VendorList />} />
+        <Route path="item-vendors"  element={<ItemVendors />} />
         <Route path="bom-disaster"  element={<BomDisaster />} />
         <Route path="admin/upload" element={<RequireAuth adminOnly><AdminUpload /></RequireAuth>} />
         <Route path="admin/users" element={<RequireAuth adminOnly><AdminUsers /></RequireAuth>} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/dashboard" />} />
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 }

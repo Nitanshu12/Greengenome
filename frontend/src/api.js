@@ -63,6 +63,17 @@ export const api = {
   updateVendor:   (id, body)    => request("PUT",    `/vendors/${id}`, body),
   deleteVendor:   (id)          => request("DELETE", `/vendors/${id}`),
 
+  // Item-Vendors
+  getItemVendors:     (params = "") => request("GET",    `/item-vendors${params ? "?" + params : ""}`),
+  getVendorsList:     ()            => request("GET",    "/item-vendors/vendors-list"),
+  getItemsList:       ()            => request("GET",    "/item-vendors/items-list"),
+  linkVendor:         (body)        => request("POST",   "/item-vendors", body),
+  updateLink:         (item_code, vendor_code, body) => request("PUT",    `/item-vendors/${item_code}/${vendor_code}`, body),
+  deleteLink:         (item_code, vendor_code)       => request("DELETE", `/item-vendors/${item_code}/${vendor_code}`),
+  getDocs:            (vendor_code) => request("GET",    `/item-vendors/documents/${vendor_code}`),
+  addDoc:             (body)        => request("POST",   "/item-vendors/documents", body),
+  deleteDoc:          (id)          => request("DELETE", `/item-vendors/documents/${id}`),
+
   // BOM Disaster
   getBom:       (params = "") => request("GET",    `/bom-disaster${params ? "?" + params : ""}`),
   createBom:    (body)        => request("POST",   "/bom-disaster", body),
