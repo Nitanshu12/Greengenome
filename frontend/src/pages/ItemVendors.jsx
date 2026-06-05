@@ -19,7 +19,7 @@ function StatusBadge({ active }) {
   return (
     <span style={{
       fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10,
-      background: active ? "#dcfce7" : "#fee2e2",
+      background: active ? "#fee2e2" : "#dcfce7",
       color: active ? "#dc2626" : "#16a34a"
     }}>
       {active ? "Inactive" : "Active"}
@@ -430,7 +430,7 @@ export default function ItemVendors() {
                             <th style={th}>Offer Price</th>
                             <th style={th}>Lead Time</th>
                             <th style={th}>Payment</th>
-                            <th style={th}>Contract From</th>
+                            <th style={th}>Contract Date</th>
                             <th style={th}>Rating</th>
                             <th style={th}>Status</th>
                             <th style={th}>Docs</th>
