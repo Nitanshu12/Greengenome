@@ -20,9 +20,9 @@ function StatusBadge({ active }) {
     <span style={{
       fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10,
       background: active ? "#dcfce7" : "#fee2e2",
-      color: active ? "#16a34a" : "#dc2626"
+      color: active ? "#dc2626" : "#16a34a"
     }}>
-      {active ? "Active" : "Inactive"}
+      {active ? "Inactive" : "Active"}
     </span>
   );
 }
