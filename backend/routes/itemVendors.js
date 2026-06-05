@@ -37,7 +37,7 @@ router.get("/", requireLogin, async (req, res) => {
       LEFT JOIN item_vendors iv ON iv.item_code = i.item_code
       LEFT JOIN vendors      v  ON v.vendor_code = iv.vendor_code
       ${where}
-      ORDER BY i.item_code ASC, v.vendor_code ASC
+      ORDER BY CAST(REGEXP_REPLACE(i.item_code, '[^0-9]', '') AS UNSIGNED) ASC, v.vendor_code ASC
     `, params);
 
     const map = {};
