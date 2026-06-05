@@ -62,6 +62,25 @@ async function initSchema() {
       ) ENGINE=InnoDB
     `);
 
+    // ── Migrate item_vendors: vendor_id (int FK) → vendor_code (varchar) ──
+    // Old schema had vendor_id INT FK to vendors.id. New schema uses vendor_code.
+    // These run safely on both old and new servers.
+    await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS vendor_code VARCHAR(50) DEFAULT NULL`);
+    await conn.query(`
+      UPDATE item_vendors iv
+        INNER JOIN vendors v ON iv.vendor_id = v.id
+        SET iv.vendor_code = v.vendor_code
+      WHERE iv.vendor_code IS NULL
+    `);
+    // Make vendor_id nullable so new inserts (without vendor_id) don't fail
+    await conn.query(`ALTER TABLE item_vendors MODIFY COLUMN vendor_id INT DEFAULT NULL`);
+    // Add unique constraint on (item_code, vendor_code) — ignore if already exists
+    try {
+      await conn.query(`ALTER TABLE item_vendors ADD UNIQUE KEY uq_iv_code (item_code, vendor_code)`);
+    } catch (e) {
+      if (!e.message.includes('Duplicate key name')) throw e;
+    }
+
     // ── Extend item_vendors with full relationship fields ─────────
     await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS is_preferred        TINYINT(1)   NOT NULL DEFAULT 0`);
     await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS min_order_qty       INT          DEFAULT NULL`);
