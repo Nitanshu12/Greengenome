@@ -255,13 +255,13 @@ export default function ItemVendors() {
   const [saving,     setSaving]     = useState(false);
   const [docsTarget, setDocsTarget] = useState(null);
 
-  const load = useCallback(() => {
-    setLoading(true);
+  const load = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     const params = search ? `q=${encodeURIComponent(search)}` : "";
     api.getItemVendors(params)
       .then(d => setItems(d.data))
       .catch(e => toast(e.message, "error"))
-      .finally(() => setLoading(false));
+      .finally(() => { if (!silent) setLoading(false); });
   }, [search]);
 
   useEffect(() => { load(); }, [load]);
@@ -295,7 +295,7 @@ export default function ItemVendors() {
       }
       setShowForm(false);
       setEditTarget(null);
-      load();
+      load(true);
     } catch (e) { toast(e.message, "error"); }
     finally { setSaving(false); }
   }
@@ -305,7 +305,7 @@ export default function ItemVendors() {
     try {
       await api.deleteLink(item_code, vendor_code);
       toast("Vendor removed");
-      load();
+      load(true);
     } catch (e) { toast(e.message, "error"); }
   }
 
