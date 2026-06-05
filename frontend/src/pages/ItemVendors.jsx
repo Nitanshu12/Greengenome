@@ -22,7 +22,7 @@ function StatusBadge({ active }) {
       background: active ? "#dcfce7" : "#fee2e2",
       color: active ? "#16a34a" : "#dc2626"
     }}>
-      {active ? "Preferred" : "Regular"}
+      {active ? "Active" : "Inactive"}
     </span>
   );
 }
@@ -31,7 +31,7 @@ function StatusBadge({ active }) {
 const EMPTY = {
   item_code: "", vendor_code: "",
   offer_price: "", lead_time: "", is_preferred: false,
-  min_order_qty: "", payment_terms: "", contract_start_date: "",
+  payment_terms: "", contract_start_date: "",
   vendor_rating: "", remarks: ""
 };
 
@@ -39,6 +39,15 @@ function LinkModal({ initial, items, vendors, onSave, onClose, saving }) {
   const [form, setForm] = useState(initial || EMPTY);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const isEdit = !!initial;
+
+  function handleItemChange(itemCode) {
+    const item = items.find(i => i.item_code === itemCode);
+    setForm(f => ({
+      ...f,
+      item_code: itemCode,
+      offer_price: !isEdit && item?.unit_cost != null ? String(item.unit_cost) : f.offer_price,
+    }));
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -50,7 +59,7 @@ function LinkModal({ initial, items, vendors, onSave, onClose, saving }) {
           <div className="form-group">
             <label className="form-label">Item *</label>
             <select className="form-input" value={form.item_code}
-              onChange={e => set("item_code", e.target.value)} disabled={isEdit}>
+              onChange={e => handleItemChange(e.target.value)} disabled={isEdit}>
               <option value="">— select item —</option>
               {items.map(i => (
                 <option key={i.item_code} value={i.item_code}>
@@ -89,12 +98,6 @@ function LinkModal({ initial, items, vendors, onSave, onClose, saving }) {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div className="form-group">
-            <label className="form-label">Min Order Qty</label>
-            <input className="form-input" type="number" min="0"
-              value={form.min_order_qty} placeholder="0"
-              onChange={e => set("min_order_qty", e.target.value)} />
-          </div>
-          <div className="form-group">
             <label className="form-label">Vendor Rating (1–5)</label>
             <input className="form-input" type="number" min="1" max="5" step="0.1"
               value={form.vendor_rating} placeholder="4.5"
@@ -127,7 +130,7 @@ function LinkModal({ initial, items, vendors, onSave, onClose, saving }) {
             onChange={e => set("is_preferred", e.target.checked)}
             style={{ width: 16, height: 16, cursor: "pointer" }} />
           <label htmlFor="isPref" className="form-label" style={{ margin: 0, cursor: "pointer" }}>
-            Mark as Preferred Vendor for this item
+            Mark as Inactive Vendor for this item
           </label>
         </div>
 
@@ -224,7 +227,7 @@ function DocsModal({ vendor, isAdmin, onClose, toast }) {
                 value={url} onChange={e => setUrl(e.target.value)} />
             </div>
             <button className="btn btn-primary" onClick={handleAdd} disabled={adding}>
-              {adding ? "Adding…" : "+ Add Document"}
+              {adding ? "Adding…" : "Add Document"}
             </button>
           </div>
         )}
@@ -316,7 +319,6 @@ export default function ItemVendors() {
       offer_price:         vendor.offer_price ?? "",
       lead_time:           vendor.lead_time ?? "",
       is_preferred:        vendor.is_preferred,
-      min_order_qty:       vendor.min_order_qty ?? "",
       payment_terms:       vendor.payment_terms ?? "",
       contract_start_date: vendor.contract_start_date
         ? vendor.contract_start_date.slice(0, 10) : "",
@@ -427,7 +429,6 @@ export default function ItemVendors() {
                             <th style={th}>Contact</th>
                             <th style={th}>Offer Price</th>
                             <th style={th}>Lead Time</th>
-                            <th style={th}>Min Qty</th>
                             <th style={th}>Payment</th>
                             <th style={th}>Contract From</th>
                             <th style={th}>Rating</th>
@@ -451,7 +452,6 @@ export default function ItemVendors() {
                                 {v.offer_price ? `₹${Number(v.offer_price).toLocaleString("en-IN")}` : "—"}
                               </td>
                               <td style={td}>{v.lead_time || "—"}</td>
-                              <td style={td}>{v.min_order_qty ?? "—"}</td>
                               <td style={td}>{v.payment_terms || "—"}</td>
                               <td style={td}>
                                 {v.contract_start_date

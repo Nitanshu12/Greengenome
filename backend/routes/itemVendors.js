@@ -23,7 +23,6 @@ router.get("/", requireLogin, async (req, res) => {
         iv.offer_price,
         iv.lead_time,
         iv.is_preferred,
-        iv.min_order_qty,
         iv.payment_terms,
         iv.contract_start_date,
         iv.vendor_rating,
@@ -60,7 +59,6 @@ router.get("/", requireLogin, async (req, res) => {
           offer_price:         row.offer_price,
           lead_time:           row.lead_time,
           is_preferred:        !!row.is_preferred,
-          min_order_qty:       row.min_order_qty,
           payment_terms:       row.payment_terms,
           contract_start_date: row.contract_start_date,
           vendor_rating:       row.vendor_rating,
@@ -91,7 +89,7 @@ router.get("/vendors-list", requireLogin, async (req, res) => {
 router.get("/items-list", requireLogin, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT item_code, name FROM items ORDER BY item_code ASC"
+      "SELECT item_code, name, unit_cost FROM items ORDER BY item_code ASC"
     );
     res.json({ data: rows });
   } catch (err) {
@@ -148,7 +146,7 @@ router.post("/", ...adminOnly, async (req, res) => {
   try {
     const {
       item_code, vendor_code, offer_price, lead_time, is_preferred,
-      min_order_qty, payment_terms, contract_start_date, vendor_rating, remarks
+      payment_terms, contract_start_date, vendor_rating, remarks
     } = req.body;
 
     if (!item_code || !vendor_code)
@@ -157,14 +155,13 @@ router.post("/", ...adminOnly, async (req, res) => {
     await pool.query(`
       INSERT INTO item_vendors
         (item_code, vendor_code, offer_price, lead_time, is_preferred,
-         min_order_qty, payment_terms, contract_start_date, vendor_rating, remarks)
-      VALUES (?,?,?,?,?,?,?,?,?,?)
+         payment_terms, contract_start_date, vendor_rating, remarks)
+      VALUES (?,?,?,?,?,?,?,?,?)
     `, [
       item_code, vendor_code,
       offer_price         || null,
       lead_time           || null,
       is_preferred ? 1 : 0,
-      min_order_qty       || null,
       payment_terms       || null,
       contract_start_date || null,
       vendor_rating       || null,
@@ -184,20 +181,19 @@ router.put("/:item_code/:vendor_code", ...adminOnly, async (req, res) => {
   try {
     const {
       offer_price, lead_time, is_preferred,
-      min_order_qty, payment_terms, contract_start_date, vendor_rating, remarks
+      payment_terms, contract_start_date, vendor_rating, remarks
     } = req.body;
 
     const [result] = await pool.query(`
       UPDATE item_vendors
       SET offer_price=?, lead_time=?, is_preferred=?,
-          min_order_qty=?, payment_terms=?, contract_start_date=?,
+          payment_terms=?, contract_start_date=?,
           vendor_rating=?, remarks=?
       WHERE item_code=? AND vendor_code=?
     `, [
       offer_price         || null,
       lead_time           || null,
       is_preferred ? 1 : 0,
-      min_order_qty       || null,
       payment_terms       || null,
       contract_start_date || null,
       vendor_rating       || null,

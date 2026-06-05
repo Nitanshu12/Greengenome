@@ -90,6 +90,14 @@ async function initSchema() {
     await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS remarks             TEXT         DEFAULT NULL`);
     await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS status            VARCHAR(50) DEFAULT 'active'`);
 
+    // Back-fill offer_price from items.unit_cost where not already set
+    await conn.query(`
+      UPDATE item_vendors iv
+      JOIN items i ON i.item_code = iv.item_code
+      SET iv.offer_price = i.unit_cost
+      WHERE iv.offer_price IS NULL
+    `);
+
     // ── Vendor documents (multiple PDFs / links per vendor) ───────
     await conn.query(`
       CREATE TABLE IF NOT EXISTS vendor_documents (
