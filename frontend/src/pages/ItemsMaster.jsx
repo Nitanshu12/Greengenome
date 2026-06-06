@@ -159,8 +159,8 @@ export default function ItemsMaster() {
     [allItems]
   );
 
-  const load = useCallback(() => {
-    setLoading(true);
+  const load = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     const params = new URLSearchParams();
     if (search) params.set("q", search);
     if (filterCat) params.set("category", filterCat);
@@ -168,11 +168,11 @@ export default function ItemsMaster() {
     api.getItems(params.toString())
       .then(d => {
         setItems(d.data);
-        setPage(1);
+        if (!silent) setPage(1);
         if (!isFiltered) setAllItems(d.data);
       })
       .catch(e => toast(e.message, "error"))
-      .finally(() => setLoading(false));
+      .finally(() => { if (!silent) setLoading(false); });
   }, [search, filterCat]);
 
   useEffect(() => { load(); }, [load]);
@@ -193,7 +193,7 @@ export default function ItemsMaster() {
       }
       setShowForm(false);
       setEditTarget(null);
-      load();
+      load(true);
     } catch (e) {
       toast(e.message, "error");
     } finally {
@@ -206,7 +206,7 @@ export default function ItemsMaster() {
     try {
       const res = await api.deleteItem(item.item_code);
       toast(res.msg);
-      load();
+      load(true);
     } catch (e) {
       toast(e.message, "error");
     }
@@ -302,22 +302,22 @@ export default function ItemsMaster() {
         </div>
       ) : (
         <>
-          <div className="table-wrap pkg-table-scroll">
-            <table>
+          <div className="table-wrap" style={{ overflowX: "hidden" }}>
+            <table className="items-master-table">
               <thead>
                 <tr>
-                  <th>Item Code</th>
-                  <th>Name</th>
-                  <th>Specification</th>
-                  <th>Industry Type</th>
-                  <th>Product Category</th>
-                  <th>Material</th>
-                  <th>Brand (Special Kit)</th>
-                  <th>Unit</th>
-                  <th>Unit Cost</th>
-                  <th>GST %</th>
-                  <th>Min Stock</th>
-                  {isAdmin && <th>Actions</th>}
+                  <th style={{ width: "7%" }}>Item Code</th>
+                  <th style={{ width: "13%" }}>Name</th>
+                  <th style={{ width: "10%" }}>Specification</th>
+                  <th style={{ width: "9%" }}>Industry Type</th>
+                  <th style={{ width: "9%" }}>Product Category</th>
+                  <th style={{ width: "8%" }}>Material</th>
+                  <th style={{ width: "9%" }}>Brand (Special Kit)</th>
+                  <th style={{ width: "5%" }}>Unit</th>
+                  <th style={{ width: "8%" }}>Unit Cost</th>
+                  <th style={{ width: "5%" }}>GST %</th>
+                  <th style={{ width: "7%" }}>Min Stock</th>
+                  {isAdmin && <th style={{ width: "10%" }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>

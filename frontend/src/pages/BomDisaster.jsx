@@ -66,13 +66,13 @@ export default function BomDisaster() {
   const [editTarget, setEditTarget] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(() => {
-    setLoading(true);
+  const load = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     const params = search ? `q=${encodeURIComponent(search)}` : "";
     api.getBom(params)
-      .then(d => { setRows(d.data); setPage(1); })
+      .then(d => { setRows(d.data); if (!silent) setPage(1); })
       .catch(e => toast(e.message, "error"))
-      .finally(() => setLoading(false));
+      .finally(() => { if (!silent) setLoading(false); });
   }, [search]);
 
   useEffect(() => { load(); }, [load]);
@@ -92,7 +92,7 @@ export default function BomDisaster() {
       }
       setShowForm(false);
       setEditTarget(null);
-      load();
+      load(true);
     } catch (e) {
       toast(e.message, "error");
     } finally {
@@ -105,7 +105,7 @@ export default function BomDisaster() {
     try {
       const res = await api.deleteBom(row.item_code);
       toast(res.msg);
-      load();
+      load(true);
     } catch (e) {
       toast(e.message, "error");
     }

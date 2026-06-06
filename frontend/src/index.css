@@ -520,6 +520,16 @@ body,
   border: 1px solid var(--border);
 }
 
+.items-master-table {
+  table-layout: fixed;
+}
+.items-master-table th,
+.items-master-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 8px 8px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
