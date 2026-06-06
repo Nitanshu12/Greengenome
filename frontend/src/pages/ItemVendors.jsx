@@ -425,16 +425,16 @@ export default function ItemVendors() {
                       <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse", tableLayout: "fixed" }}>
                         <thead>
                           <tr style={{ background: "#f8f9fa", color: "var(--muted)", fontSize: 11, textTransform: "uppercase" }}>
-                            <th style={{ ...th, width: "16%", overflow: "hidden", textOverflow: "ellipsis" }}>Vendor</th>
-                            <th style={{ ...th, width: "13%", overflow: "hidden", textOverflow: "ellipsis" }}>Contact</th>
-                            <th style={{ ...th, width: "9%",  overflow: "hidden", textOverflow: "ellipsis" }}>Offer Price</th>
-                            <th style={{ ...th, width: "9%",  overflow: "hidden", textOverflow: "ellipsis" }}>Lead Time</th>
-                            <th style={{ ...th, width: "11%", overflow: "hidden", textOverflow: "ellipsis" }}>Payment</th>
-                            <th style={{ ...th, width: "11%", overflow: "hidden", textOverflow: "ellipsis" }}>Contract Date</th>
-                            <th style={{ ...th, width: "10%", overflow: "hidden", textOverflow: "ellipsis" }}>Rating</th>
-                            <th style={{ ...th, width: "8%",  overflow: "hidden", textOverflow: "ellipsis" }}>Status</th>
-                            <th style={{ ...th, width: "7%",  overflow: "hidden", textOverflow: "ellipsis" }}>Docs</th>
-                            {isAdmin && <th style={{ ...th, width: "6%",  overflow: "hidden", textOverflow: "ellipsis" }}>Actions</th>}
+                            <th style={{ ...th, width: "15%" }}>Vendor</th>
+                            <th style={{ ...th, width: "12%" }}>Contact</th>
+                            <th style={{ ...th, width: "9%"  }}>Offer Price</th>
+                            <th style={{ ...th, width: "8%"  }}>Lead Time</th>
+                            <th style={{ ...th, width: "10%" }}>Payment</th>
+                            <th style={{ ...th, width: "10%" }}>Contract Date</th>
+                            <th style={{ ...th, width: "9%"  }}>Rating</th>
+                            <th style={{ ...th, width: "8%"  }}>Status</th>
+                            <th style={{ ...th, width: "7%"  }}>Docs</th>
+                            {isAdmin && <th style={{ ...th, width: "12%" }}>Actions</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -468,7 +468,7 @@ export default function ItemVendors() {
                               </td>
                               {isAdmin && (
                                 <td style={td}>
-                                  <div className="flex gap-2">
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                                     <button className="btn btn-ghost btn-sm"
                                       onClick={() => openEdit(v, item.item_code)}>
                                       Edit

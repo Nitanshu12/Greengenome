@@ -312,7 +312,7 @@ export default function ItemsMaster() {
                   <th style={{ width: "9%" }}>Industry Type</th>
                   <th style={{ width: "9%" }}>Product Category</th>
                   <th style={{ width: "8%" }}>Material</th>
-                  <th style={{ width: "9%" }}>Brand (Special Kit)</th>
+                  <th style={{ width: "9%" }}>Brand</th>
                   <th style={{ width: "5%" }}>Unit</th>
                   <th style={{ width: "8%" }}>Unit Cost</th>
                   <th style={{ width: "5%" }}>GST %</th>

@@ -10,6 +10,7 @@ const NAV = [
   { to: "/vendor-list",   icon: "🏪", label: "Vendor List" },
   { to: "/item-vendors",  icon: "🔗", label: "Item — Vendors" },
   { to: "/bom-disaster",  icon: "📋", label: "BOM — Disaster" },
+  { to: "/stock-batches", icon: "🏬", label: "Stock Batches" },
 ];
 
 const ADMIN_NAV = [

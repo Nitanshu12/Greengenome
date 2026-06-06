@@ -136,8 +136,9 @@ app.use("/api/admin",   require("./routes/admin"));
 app.use("/api/items",   require("./routes/items"));
 app.use("/api/vendors",      require("./routes/vendors"));
 app.use("/api/item-vendors", require("./routes/itemVendors"));
-app.use("/api/bom-disaster", require("./routes/bomDisaster"));
-app.use("/api",         require("./routes/kits"));
+app.use("/api/bom-disaster",   require("./routes/bomDisaster"));
+app.use("/api/stock-batches",  require("./routes/stockBatches"));
+app.use("/api",                require("./routes/kits"));
 
 
 

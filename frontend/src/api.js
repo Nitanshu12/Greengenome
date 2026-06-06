@@ -80,6 +80,14 @@ export const api = {
   updateBom:    (code, body)  => request("PUT",    `/bom-disaster/${encodeURIComponent(code)}`, body),
   deleteBom:    (code)        => request("DELETE", `/bom-disaster/${encodeURIComponent(code)}`),
 
+  // Stock Batches
+  getStockBatches:  (params = "") => request("GET",    `/stock-batches${params ? "?" + params : ""}`),
+  getStockSummary:  ()            => request("GET",    "/stock-batches/summary"),
+  createStockBatch: (body)        => request("POST",   "/stock-batches", body),
+  updateStockBatch: (id, body)    => request("PUT",    `/stock-batches/${id}`, body),
+  issueStock:       (id, body)    => request("POST",   `/stock-batches/${id}/issue`, body),
+  deleteStockBatch: (id)          => request("DELETE", `/stock-batches/${id}`),
+
   // Admin — users
   getUsers:       ()      => request("GET",   "/admin/users"),
   createUser:     (body)  => request("POST",  "/admin/users", body),

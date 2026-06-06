@@ -11,6 +11,7 @@ import ItemsMaster from "./pages/ItemsMaster";
 import VendorList from "./pages/VendorList";
 import ItemVendors from "./pages/ItemVendors";
 import BomDisaster from "./pages/BomDisaster";
+import StockBatches from "./pages/StockBatches";
 
 function RequireAuth({ children, adminOnly = false }) {
   const { user } = useAuth();
@@ -36,7 +37,8 @@ export default function App() {
         <Route path="items-master" element={<ItemsMaster />} />
         <Route path="vendor-list"   element={<VendorList />} />
         <Route path="item-vendors"  element={<ItemVendors />} />
-        <Route path="bom-disaster"  element={<BomDisaster />} />
+        <Route path="bom-disaster"   element={<BomDisaster />} />
+        <Route path="stock-batches"  element={<StockBatches />} />
         <Route path="admin/upload" element={<RequireAuth adminOnly><AdminUpload /></RequireAuth>} />
         <Route path="admin/users" element={<RequireAuth adminOnly><AdminUsers /></RequireAuth>} />
       </Route>

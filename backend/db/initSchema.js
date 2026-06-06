@@ -109,6 +109,53 @@ async function initSchema() {
         FOREIGN KEY (vendor_code) REFERENCES vendors(vendor_code) ON DELETE CASCADE
       ) ENGINE=InnoDB
     `);
+
+    // ── Stock Batches ─────────────────────────────────────────────
+    // Each row = one physical delivery of one item from one vendor.
+    // qty_in_hand is never stored — it is always computed as
+    // (qty_received - qty_issued) so there is only one source of truth.
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS stock_batches (
+        batch_id          INT AUTO_INCREMENT PRIMARY KEY,
+        supplier_batch_no VARCHAR(100)  DEFAULT NULL,
+        item_code         VARCHAR(50)   NOT NULL,
+        vendor_code       VARCHAR(50)   DEFAULT NULL,
+        mfg_date          DATE          DEFAULT NULL,
+        expiry_date       DATE          NOT NULL,
+        qty_received      INT           NOT NULL,
+        qty_issued        INT           NOT NULL DEFAULT 0,
+        unit              VARCHAR(50)   NOT NULL,
+        storage_location  VARCHAR(200)  DEFAULT NULL,
+        status            ENUM('active','expired','quarantined','returned') NOT NULL DEFAULT 'active',
+        remarks           TEXT          DEFAULT NULL,
+        created_at        TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+        updated_at        TIMESTAMP     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_code)   REFERENCES items(item_code)     ON DELETE RESTRICT,
+        FOREIGN KEY (vendor_code) REFERENCES vendors(vendor_code) ON DELETE SET NULL
+      ) ENGINE=InnoDB
+    `);
+
+    // ── item_stock_summary VIEW ───────────────────────────────────
+    // A saved query that always shows current qty_in_hand per item.
+    // Reading from this view is identical to reading a table — but the
+    // number is always computed fresh from stock_batches, so it can
+    // never drift out of sync.
+    await conn.query(`
+      CREATE OR REPLACE VIEW item_stock_summary AS
+      SELECT
+        s.item_code,
+        i.name                                  AS item_name,
+        i.unit,
+        SUM(s.qty_received - s.qty_issued)      AS qty_in_hand,
+        MIN(s.expiry_date)                       AS nearest_expiry,
+        COUNT(*)                                 AS batch_count
+      FROM stock_batches s
+      JOIN items i ON i.item_code = s.item_code
+      WHERE s.status = 'active'
+        AND s.expiry_date > CURDATE()
+      GROUP BY s.item_code, i.name, i.unit
+    `);
+
     console.log("✅ MariaDB schema ready");
   } catch (err) {
     console.error("❌ MariaDB schema init failed:", err.message);
