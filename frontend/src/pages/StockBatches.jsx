@@ -438,11 +438,11 @@ export default function StockBatches() {
               <table className="items-master-table">
                 <thead>
                   <tr>
-                    {/* <th>Batch ID</th> */}
                     <th>Item</th>
                     <th>Batch No</th>
                     <th>Vendor</th>
-                    <th>Expiry</th>
+                    <th>Mfg Date</th>
+                    <th>Expiry Date</th>
                     <th style={{ textAlign: "right" }}>Received</th>
                     <th style={{ textAlign: "right" }}>Issued</th>
                     <th style={{ textAlign: "right" }}>In Hand</th>
@@ -456,35 +456,37 @@ export default function StockBatches() {
                     const inHand = b.qty_received - b.qty_issued;
                     return (
                       <tr key={b.batch_id}>
-                        {/* <td>
-                          <span style={{ fontFamily: "monospace", fontSize: 12,
-                            background: "var(--border)", padding: "2px 6px", borderRadius: 4 }}>
-                            #{b.batch_id}
-                          </span>
-                        </td> */}
-                        <td style={{ color: "var(--muted)", fontFamily: "monospace", fontSize: 12 }}>
-                          {b.supplier_batch_no || "NULL"}
-                        </td>
+                        {/* Item code + name */}
                         <td>
                           <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "monospace" }}>
                             {b.item_code}
                           </div>
-                        </td>
-                        <td>
                           <div style={{ fontWeight: 500, maxWidth: 180, overflow: "hidden",
                             textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={b.item_name}>
                             {b.item_name}
                           </div>
                         </td>
+                        {/* Batch No */}
+                        <td style={{ color: "var(--muted)", fontFamily: "monospace", fontSize: 12 }}>
+                          {b.supplier_batch_no || <span style={{ color: "var(--muted)" }}>—</span>}
+                        </td>
+                        {/* Vendor */}
                         <td style={{ fontSize: 12, maxWidth: 140, overflow: "hidden",
                           textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                          title={b.vendor_code}>
-                          {b.vendor_code || <span style={{ color: "var(--muted)" }}>NULL</span>}
+                          title={b.vendor_name || b.vendor_code}>
+                          {b.vendor_name || b.vendor_code || <span style={{ color: "var(--muted)" }}>—</span>}
                         </td>
+                        {/* Mfg Date */}
+                        <td style={{ whiteSpace: "nowrap", fontSize: 12, color: "var(--muted)" }}>
+                          {b.mfg_date
+                            ? new Date(b.mfg_date).toLocaleDateString("en-IN")
+                            : <span style={{ color: "var(--muted)" }}>—</span>}
+                        </td>
+                        {/* Expiry Date */}
                         <td style={{ whiteSpace: "nowrap" }}>
                           {b.expiry_date
-                            ? <>{new Date(b.expiry_date).toLocaleDateString("en-IN")}</>
-                            : "NULL"}
+                            ? <>{new Date(b.expiry_date).toLocaleDateString("en-IN")}{expiryBadge(b.expiry_date)}</>
+                            : <span style={{ color: "var(--muted)" }}>—</span>}
                         </td>
                         <td style={{ textAlign: "right", color: "var(--muted)" }}>
                           {b.qty_received} {b.unit}
