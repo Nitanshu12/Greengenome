@@ -1,10 +1,3 @@
-/**
- * Seed script — imports ALL rows from STOCK LIST.xlsx into stock_batches.
- * Missing items/vendors are inserted with placeholder data first so no row is skipped.
- *
- * Run from backend/:
- *   node scripts/seedStockBatches.js /path/to/STOCK\ LIST.xlsx
- */
 
 require("dotenv").config({ path: require("path").join(__dirname, "../.env") });
 
@@ -67,7 +60,7 @@ async function run() {
       const vendorCode      = r["Vendor Code"]?.trim() || null;
       const supplierBatchNo = r["Batch No. "]?.toString().trim() || null;
       const mfgDate         = excelDateToStr(r["Mfg Date"]);
-      const expiryDate      = excelDateToStr(r["Expiry Date"]) ?? "2099-12-31";
+      const expiryDate      = excelDateToStr(r["Expiry Date"]) ?? null;
       const qtyReceived     = Number(r["Stock in Hand "]) || 0;
       const storageLocation = r["Storage Location"]?.trim() || null;
       const remarks         = r["Remarks"]?.trim() || null;

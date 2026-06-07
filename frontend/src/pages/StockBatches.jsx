@@ -93,7 +93,7 @@ function BatchFormModal({ initial, items, vendors, onSave, onClose, saving }) {
               onChange={e => set("mfg_date", e.target.value)} />
           </div>
           <div className="form-group">
-            <label className="form-label">Expiry Date *</label>
+            <label className="form-label">Expiry Date</label>
             <input className="form-input" type="date" value={form.expiry_date}
               onChange={e => set("expiry_date", e.target.value)} />
           </div>
@@ -239,8 +239,8 @@ export default function StockBatches() {
   }, []);
 
   const handleSave = async (form) => {
-    if (!form.item_code || !form.expiry_date || !form.qty_received || !form.unit) {
-      toast("Item, expiry date, quantity, and unit are required", "error");
+    if (!form.item_code || !form.qty_received || !form.unit) {
+      toast("Item, quantity, and unit are required", "error");
       return;
     }
     setSaving(true);

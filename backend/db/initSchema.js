@@ -62,9 +62,6 @@ async function initSchema() {
       ) ENGINE=InnoDB
     `);
 
-    // ── Migrate item_vendors: vendor_id (int FK) → vendor_code (varchar) ──
-    // Old schema had vendor_id INT FK to vendors.id. New schema uses vendor_code.
-    // These run safely on both old and new servers.
     await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS vendor_code VARCHAR(50) DEFAULT NULL`);
     await conn.query(`
       UPDATE item_vendors iv
@@ -90,7 +87,6 @@ async function initSchema() {
     await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS remarks             TEXT         DEFAULT NULL`);
     await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS status            VARCHAR(50) DEFAULT 'active'`);
 
-    // Back-fill offer_price from items.unit_cost where not already set
     await conn.query(`
       UPDATE item_vendors iv
       JOIN items i ON i.item_code = iv.item_code
@@ -98,7 +94,6 @@ async function initSchema() {
       WHERE iv.offer_price IS NULL
     `);
 
-    // ── Vendor documents (multiple PDFs / links per vendor) ───────
     await conn.query(`
       CREATE TABLE IF NOT EXISTS vendor_documents (
         id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -110,10 +105,6 @@ async function initSchema() {
       ) ENGINE=InnoDB
     `);
 
-    // ── Stock Batches ─────────────────────────────────────────────
-    // Each row = one physical delivery of one item from one vendor.
-    // qty_in_hand is never stored — it is always computed as
-    // (qty_received - qty_issued) so there is only one source of truth.
     await conn.query(`
       CREATE TABLE IF NOT EXISTS stock_batches (
         batch_id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -134,12 +125,6 @@ async function initSchema() {
         FOREIGN KEY (vendor_code) REFERENCES vendors(vendor_code) ON DELETE SET NULL
       ) ENGINE=InnoDB
     `);
-
-    // ── item_stock_summary VIEW ───────────────────────────────────
-    // A saved query that always shows current qty_in_hand per item.
-    // Reading from this view is identical to reading a table — but the
-    // number is always computed fresh from stock_batches, so it can
-    // never drift out of sync.
     await conn.query(`
       CREATE OR REPLACE VIEW item_stock_summary AS
       SELECT
@@ -147,12 +132,11 @@ async function initSchema() {
         i.name                                  AS item_name,
         i.unit,
         SUM(s.qty_received - s.qty_issued)      AS qty_in_hand,
-        MIN(s.expiry_date)                       AS nearest_expiry,
+        MIN(CASE WHEN s.expiry_date > CURDATE() THEN s.expiry_date ELSE NULL END) AS nearest_expiry,
         COUNT(*)                                 AS batch_count
       FROM stock_batches s
       JOIN items i ON i.item_code = s.item_code
       WHERE s.status = 'active'
-        AND s.expiry_date > CURDATE()
       GROUP BY s.item_code, i.name, i.unit
     `);
 
