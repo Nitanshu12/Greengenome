@@ -121,7 +121,7 @@ async function initSchema() {
         item_code         VARCHAR(50)   NOT NULL,
         vendor_code       VARCHAR(50)   DEFAULT NULL,
         mfg_date          DATE          DEFAULT NULL,
-        expiry_date       DATE          NOT NULL,
+        expiry_date       DATE          DEFAULT NULL,
         qty_received      INT           NOT NULL,
         qty_issued        INT           NOT NULL DEFAULT 0,
         unit              VARCHAR(50)   NOT NULL,
@@ -133,6 +133,11 @@ async function initSchema() {
         FOREIGN KEY (item_code)   REFERENCES items(item_code)     ON DELETE RESTRICT,
         FOREIGN KEY (vendor_code) REFERENCES vendors(vendor_code) ON DELETE SET NULL
       ) ENGINE=InnoDB
+    `);
+
+    // Ensure existing table has nullable expiry_date
+    await conn.query(`
+      ALTER TABLE stock_batches MODIFY COLUMN expiry_date DATE DEFAULT NULL
     `);
 
     // ── item_stock_summary VIEW ───────────────────────────────────
@@ -152,7 +157,7 @@ async function initSchema() {
       FROM stock_batches s
       JOIN items i ON i.item_code = s.item_code
       WHERE s.status = 'active'
-        AND s.expiry_date > CURDATE()
+        AND (s.expiry_date > CURDATE() OR s.expiry_date IS NULL)
       GROUP BY s.item_code, i.name, i.unit
     `);
 

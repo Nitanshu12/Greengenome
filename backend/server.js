@@ -125,20 +125,29 @@ app.get("/health", (req, res) => {
   res.status(200).type("text").send("ok");
 });
 
-// ── MariaDB schema bootstrap ──────────────────────────────────
-require("./db/initSchema")().catch(err => {
-  console.error("Schema init error:", err.message || err.code || err);
-});
+// ── Auth + Kits routes (always needed) ───────────────────────
+app.use("/api/auth",  require("./routes/auth"));
+app.use("/api/admin", require("./routes/admin"));
+app.use("/api",       require("./routes/kits"));
 
-// ── API Routes ────────────────────────────────────────────────
-app.use("/api/auth",    require("./routes/auth"));
-app.use("/api/admin",   require("./routes/admin"));
-app.use("/api/items",   require("./routes/items"));
-app.use("/api/vendors",      require("./routes/vendors"));
-app.use("/api/item-vendors", require("./routes/itemVendors"));
-app.use("/api/bom-disaster",   require("./routes/bomDisaster"));
-app.use("/api/stock-batches",  require("./routes/stockBatches"));
-app.use("/api",                require("./routes/kits"));
+if (!isProd) {
+  // ── DEV MODE: all IMS data served from MongoDB ─────────────
+  const devRoutes = require("./routes/devRoutes");
+  app.use("/api", devRoutes);
+  console.log("🧪 DEV MODE: MongoDB routes active.");
+  console.log("   → POST /api/dev/seed  to load sample test data");
+  console.log("   → DELETE /api/dev/clear  to wipe dev data");
+} else {
+  // ── PRODUCTION: MariaDB schema + routes ────────────────────
+  require("./db/initSchema")().catch(err => {
+    console.error("Schema init error:", err.message || err.code || err);
+  });
+  app.use("/api/items",         require("./routes/items"));
+  app.use("/api/vendors",       require("./routes/vendors"));
+  app.use("/api/item-vendors",  require("./routes/itemVendors"));
+  app.use("/api/bom-disaster",  require("./routes/bomDisaster"));
+  app.use("/api/stock-batches", require("./routes/stockBatches"));
+}
 
 
 
