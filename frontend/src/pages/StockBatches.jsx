@@ -508,7 +508,7 @@ export default function StockBatches() {
                         </td>
                         {/* Batch No */}
                         <td style={{ color: "var(--muted)", fontFamily: "monospace", fontSize: 12 }}>
-                          {b.supplier_batch_no || <span style={{ color: "var(--muted)" }}>—</span>}
+                          {b.supplier_batch_no || <span style={{ color: "var(--muted)" }}>NULL</span>}
                         </td>
                         {/* Vendor */}
                         <td style={{
