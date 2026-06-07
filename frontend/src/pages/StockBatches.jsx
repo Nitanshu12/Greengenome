@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { api } from "../api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/Toast";
@@ -303,22 +303,41 @@ export default function StockBatches() {
 
   const expiryBadge = (dateStr) => {
     if (!dateStr) return null;
-    const days = Math.ceil((new Date(dateStr) - new Date()) / (1000 * 60 * 60 * 24));
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime()) || date.getFullYear() < 2000) return null;
+    const days = Math.ceil((date - new Date()) / (1000 * 60 * 60 * 24));
     if (days < 0) return <span style={{ background: "#fee2e2", color: "#991b1b", borderRadius: 4, padding: "2px 6px", fontSize: 11, marginLeft: 6 }}>Expired</span>;
     if (days <= 90) return <span style={{ background: "#fef3c7", color: "#92400e", borderRadius: 4, padding: "2px 6px", fontSize: 11, marginLeft: 6 }}>{days}d left</span>;
     return null;
   };
 
   const formatDateMMM_YY = (dateStr) => {
-    if (!dateStr) return "—";
+    if (!dateStr) return <span style={{ color: "var(--muted)" }}>NULL</span>;
     const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return "—";
-    if (date.getFullYear() < 1950) return "—";
+    if (isNaN(date.getTime()) || date.getFullYear() < 2000) {
+      return <span style={{ color: "var(--muted)" }}>NULL</span>;
+    }
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const m = months[date.getMonth()];
     const y = String(date.getFullYear()).slice(-2);
     return `${m}-${y}`;
   };
+
+  const sortedBatches = useMemo(() => {
+    return [...batches].sort((a, b) => {
+      const cmp = (a.item_code || "").localeCompare(b.item_code || "", undefined, { numeric: true, sensitivity: "base" });
+      if (cmp !== 0) return cmp;
+      const dateA = a.expiry_date ? new Date(a.expiry_date).getTime() : 0;
+      const dateB = b.expiry_date ? new Date(b.expiry_date).getTime() : 0;
+      return dateA - dateB;
+    });
+  }, [batches]);
+
+  const sortedSummary = useMemo(() => {
+    return [...summary].sort((a, b) => {
+      return (a.item_code || "").localeCompare(b.item_code || "", undefined, { numeric: true, sensitivity: "base" });
+    });
+  }, [summary]);
 
   return (
     <>
@@ -372,7 +391,7 @@ export default function StockBatches() {
                   </tr>
                 </thead>
                 <tbody>
-                  {summary.map(row => (
+                  {sortedSummary.map(row => (
                     <tr key={row.item_code}>
                       <td>
                         <span style={{
@@ -391,9 +410,8 @@ export default function StockBatches() {
                         {row.qty_in_hand ?? 0}
                       </td>
                       <td>
-                        {row.nearest_expiry
-                          ? <>{formatDateMMM_YY(row.nearest_expiry)} {expiryBadge(row.nearest_expiry)}</>
-                          : <span style={{ color: "var(--muted)" }}>—</span>}
+                        {formatDateMMM_YY(row.nearest_expiry)}
+                        {expiryBadge(row.nearest_expiry)}
                       </td>
                       <td style={{ textAlign: "center", color: "var(--muted)" }}>{row.batch_count}</td>
                     </tr>
@@ -470,7 +488,7 @@ export default function StockBatches() {
                   </tr>
                 </thead>
                 <tbody>
-                  {batches.map(b => {
+                  {sortedBatches.map(b => {
                     const inHand = b.qty_received - b.qty_issued;
                     return (
                       <tr key={b.batch_id}>
@@ -506,9 +524,8 @@ export default function StockBatches() {
                         </td>
                         {/* Expiry Date */}
                         <td style={{ whiteSpace: "nowrap" }}>
-                          {b.expiry_date
-                            ? <>{formatDateMMM_YY(b.expiry_date)}{expiryBadge(b.expiry_date)}</>
-                            : <span style={{ color: "var(--muted)" }}>—</span>}
+                          {formatDateMMM_YY(b.expiry_date)}
+                          {expiryBadge(b.expiry_date)}
                         </td>
                         <td style={{ textAlign: "right", color: "var(--muted)" }}>
                           {b.qty_received} {b.unit}
