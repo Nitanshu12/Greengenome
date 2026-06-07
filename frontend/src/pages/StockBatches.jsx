@@ -7,10 +7,10 @@ const UNITS = ["Piece", "Box", "Pack", "Strip", "Vial", "Bottle", "Roll", "Pair"
 const STATUSES = ["active", "expired", "quarantined", "returned"];
 
 const STATUS_STYLE = {
-  active:      { background: "#d1fae5", color: "#065f46" },
-  expired:     { background: "#fee2e2", color: "#991b1b" },
+  active: { background: "#d1fae5", color: "#065f46" },
+  expired: { background: "#fee2e2", color: "#991b1b" },
   quarantined: { background: "#fef3c7", color: "#92400e" },
-  returned:    { background: "#e0e7ff", color: "#3730a3" },
+  returned: { background: "#e0e7ff", color: "#3730a3" },
 };
 
 const EMPTY_BATCH_FORM = {
@@ -93,7 +93,7 @@ function BatchFormModal({ initial, items, vendors, onSave, onClose, saving }) {
               onChange={e => set("mfg_date", e.target.value)} />
           </div>
           <div className="form-group">
-            <label className="form-label">Expiry Date</label>
+            <label className="form-label">Expiry Date *</label>
             <input className="form-input" type="date" value={form.expiry_date}
               onChange={e => set("expiry_date", e.target.value)} />
           </div>
@@ -155,8 +155,10 @@ function IssueModal({ batch, onSave, onClose, saving }) {
       <div className="modal" style={{ maxWidth: 420, width: "95%" }}
         onClick={e => e.stopPropagation()}>
         <div className="modal-title">Issue Stock</div>
-        <div style={{ marginBottom: 16, padding: "10px 14px", background: "var(--border)",
-          borderRadius: 8, fontSize: 13 }}>
+        <div style={{
+          marginBottom: 16, padding: "10px 14px", background: "var(--border)",
+          borderRadius: 8, fontSize: 13
+        }}>
           <strong>{batch.item_name}</strong>
           <div style={{ color: "var(--muted)", marginTop: 4 }}>
             Batch #{batch.batch_id}
@@ -193,19 +195,19 @@ export default function StockBatches() {
   const { toast } = useToast();
   const isAdmin = ["admin", "superadmin"].includes(user?.role);
 
-  const [batches, setBatches]   = useState([]);
-  const [items, setItems]       = useState([]);
-  const [vendors, setVendors]   = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
+  const [batches, setBatches] = useState([]);
+  const [items, setItems] = useState([]);
+  const [vendors, setVendors] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const [search, setSearch]     = useState("");
+  const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const [filterItem, setFilterItem]     = useState("");
-  const [view, setView]         = useState("batches"); // "batches" | "summary"
+  const [filterItem, setFilterItem] = useState("");
+  const [view, setView] = useState("batches"); // "batches" | "summary"
 
-  const [showForm, setShowForm]       = useState(false);
-  const [editTarget, setEditTarget]   = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
   const [issueTarget, setIssueTarget] = useState(null);
 
   const [summary, setSummary] = useState([]);
@@ -213,9 +215,9 @@ export default function StockBatches() {
   const load = useCallback((silent = false) => {
     if (!silent) setLoading(true);
     const params = new URLSearchParams();
-    if (search)       params.set("q", search);
+    if (search) params.set("q", search);
     if (filterStatus) params.set("status", filterStatus);
-    if (filterItem)   params.set("item_code", filterItem);
+    if (filterItem) params.set("item_code", filterItem);
     api.getStockBatches(params.toString())
       .then(d => setBatches(d.data))
       .catch(e => toast(e.message, "error"))
@@ -232,13 +234,13 @@ export default function StockBatches() {
   useEffect(() => { loadSummary(); }, [loadSummary]);
 
   useEffect(() => {
-    api.getItems().then(d => setItems(d.data)).catch(() => {});
-    api.getVendors().then(d => setVendors(d.data)).catch(() => {});
+    api.getItems().then(d => setItems(d.data)).catch(() => { });
+    api.getVendors().then(d => setVendors(d.data)).catch(() => { });
   }, []);
 
   const handleSave = async (form) => {
-    if (!form.item_code || !form.qty_received || !form.unit) {
-      toast("Item, quantity, and unit are required", "error");
+    if (!form.item_code || !form.expiry_date || !form.qty_received || !form.unit) {
+      toast("Item, expiry date, quantity, and unit are required", "error");
       return;
     }
     setSaving(true);
@@ -307,6 +309,17 @@ export default function StockBatches() {
     return null;
   };
 
+  const formatDateMMM_YY = (dateStr) => {
+    if (!dateStr) return "—";
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "—";
+    if (date.getFullYear() < 1950) return "—";
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const m = months[date.getMonth()];
+    const y = String(date.getFullYear()).slice(-2);
+    return `${m}-${y}`;
+  };
+
   return (
     <>
       {/* ── Page Header ── */}
@@ -362,20 +375,24 @@ export default function StockBatches() {
                   {summary.map(row => (
                     <tr key={row.item_code}>
                       <td>
-                        <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12,
-                          background: "var(--border)", padding: "2px 6px", borderRadius: 4 }}>
+                        <span style={{
+                          fontFamily: "monospace", fontWeight: 600, fontSize: 12,
+                          background: "var(--border)", padding: "2px 6px", borderRadius: 4
+                        }}>
                           {row.item_code}
                         </span>
                       </td>
                       <td style={{ fontWeight: 500 }}>{row.item_name}</td>
                       <td style={{ color: "var(--muted)" }}>{row.unit}</td>
-                      <td style={{ textAlign: "right", fontWeight: 700,
-                        color: row.qty_in_hand <= 0 ? "#991b1b" : "var(--fg)" }}>
+                      <td style={{
+                        textAlign: "right", fontWeight: 700,
+                        color: row.qty_in_hand <= 0 ? "#991b1b" : "var(--fg)"
+                      }}>
                         {row.qty_in_hand ?? 0}
                       </td>
                       <td>
                         {row.nearest_expiry
-                          ? <>{new Date(row.nearest_expiry).toLocaleDateString("en-IN")} {expiryBadge(row.nearest_expiry)}</>
+                          ? <>{formatDateMMM_YY(row.nearest_expiry)} {expiryBadge(row.nearest_expiry)}</>
                           : <span style={{ color: "var(--muted)" }}>—</span>}
                       </td>
                       <td style={{ textAlign: "center", color: "var(--muted)" }}>{row.batch_count}</td>
@@ -439,6 +456,7 @@ export default function StockBatches() {
                 <thead>
                   <tr>
                     <th>Item</th>
+                    <th>Item Name</th>
                     <th>Batch No</th>
                     <th>Vendor</th>
                     <th>Mfg Date</th>
@@ -461,8 +479,12 @@ export default function StockBatches() {
                           <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "monospace" }}>
                             {b.item_code}
                           </div>
-                          <div style={{ fontWeight: 500, maxWidth: 180, overflow: "hidden",
-                            textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={b.item_name}>
+                        </td>
+                        <td>
+                          <div style={{
+                            fontWeight: 500, maxWidth: 180, overflow: "hidden",
+                            textOverflow: "ellipsis", whiteSpace: "nowrap"
+                          }} title={b.item_name}>
                             {b.item_name}
                           </div>
                         </td>
@@ -471,21 +493,21 @@ export default function StockBatches() {
                           {b.supplier_batch_no || <span style={{ color: "var(--muted)" }}>—</span>}
                         </td>
                         {/* Vendor */}
-                        <td style={{ fontSize: 12, maxWidth: 140, overflow: "hidden",
-                          textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                        <td style={{
+                          fontSize: 12, maxWidth: 140, overflow: "hidden",
+                          textOverflow: "ellipsis", whiteSpace: "nowrap"
+                        }}
                           title={b.vendor_code}>
                           {b.vendor_code || <span style={{ color: "var(--muted)" }}>—</span>}
                         </td>
                         {/* Mfg Date */}
                         <td style={{ whiteSpace: "nowrap", fontSize: 12, color: "var(--muted)" }}>
-                          {b.mfg_date
-                            ? new Date(b.mfg_date).toLocaleDateString("en-IN")
-                            : <span style={{ color: "var(--muted)" }}>—</span>}
+                          {formatDateMMM_YY(b.mfg_date)}
                         </td>
                         {/* Expiry Date */}
                         <td style={{ whiteSpace: "nowrap" }}>
                           {b.expiry_date
-                            ? <>{new Date(b.expiry_date).toLocaleDateString("en-IN")}{expiryBadge(b.expiry_date)}</>
+                            ? <>{formatDateMMM_YY(b.expiry_date)}{expiryBadge(b.expiry_date)}</>
                             : <span style={{ color: "var(--muted)" }}>—</span>}
                         </td>
                         <td style={{ textAlign: "right", color: "var(--muted)" }}>
@@ -494,12 +516,16 @@ export default function StockBatches() {
                         <td style={{ textAlign: "right", color: b.qty_issued > 0 ? "var(--fg)" : "var(--muted)" }}>
                           {b.qty_issued} {b.unit}
                         </td>
-                        <td style={{ textAlign: "right", fontWeight: 700,
-                          color: inHand <= 0 ? "#991b1b" : inHand <= 10 ? "#92400e" : "var(--fg)" }}>
+                        <td style={{
+                          textAlign: "right", fontWeight: 700,
+                          color: inHand <= 0 ? "#991b1b" : inHand <= 10 ? "#92400e" : "var(--fg)"
+                        }}>
                           {inHand} {b.unit}
                         </td>
-                        <td style={{ fontSize: 12, color: "var(--muted)", maxWidth: 120,
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                        <td style={{
+                          fontSize: 12, color: "var(--muted)", maxWidth: 120,
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+                        }}
                           title={b.storage_location}>
                           {b.storage_location || "NULL"}
                         </td>
@@ -543,16 +569,16 @@ export default function StockBatches() {
       {showForm && (
         <BatchFormModal
           initial={editTarget ? {
-            item_code:         editTarget.item_code         ?? "",
-            vendor_code:       editTarget.vendor_code       ?? "",
+            item_code: editTarget.item_code ?? "",
+            vendor_code: editTarget.vendor_code ?? "",
             supplier_batch_no: editTarget.supplier_batch_no ?? "",
-            mfg_date:          editTarget.mfg_date          ? editTarget.mfg_date.slice(0, 10) : "",
-            expiry_date:       editTarget.expiry_date        ? editTarget.expiry_date.slice(0, 10) : "",
-            qty_received:      editTarget.qty_received       ?? "",
-            unit:              editTarget.unit               ?? "",
-            storage_location:  editTarget.storage_location   ?? "",
-            status:            editTarget.status             ?? "active",
-            remarks:           editTarget.remarks            ?? "",
+            mfg_date: editTarget.mfg_date ? editTarget.mfg_date.slice(0, 10) : "",
+            expiry_date: editTarget.expiry_date ? editTarget.expiry_date.slice(0, 10) : "",
+            qty_received: editTarget.qty_received ?? "",
+            unit: editTarget.unit ?? "",
+            storage_location: editTarget.storage_location ?? "",
+            status: editTarget.status ?? "active",
+            remarks: editTarget.remarks ?? "",
           } : null}
           items={items}
           vendors={vendors}

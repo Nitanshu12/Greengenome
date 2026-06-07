@@ -74,7 +74,7 @@ router.get("/", requireLogin, async (req, res) => {
          JOIN items i ON i.item_code = sb.item_code
          LEFT JOIN vendors v ON v.vendor_code = sb.vendor_code
          ${where}
-         ORDER BY sb.expiry_date ASC`,
+         ORDER BY sb.item_code ASC, sb.expiry_date ASC`,
         params
       );
       res.json({ data: rows });
@@ -104,9 +104,9 @@ router.post("/", ...adminOnly, async (req, res) => {
       remarks,
     } = req.body;
 
-    if (!item_code || !qty_received || !unit) {
+    if (!item_code || !expiry_date || !qty_received || !unit) {
       return res.status(400).json({
-        error: "item_code, qty_received, and unit are required",
+        error: "item_code, expiry_date, qty_received, and unit are required",
       });
     }
     if (Number(qty_received) <= 0) {
@@ -125,7 +125,7 @@ router.post("/", ...adminOnly, async (req, res) => {
           item_code,
           vendor_code || null,
           mfg_date || null,
-          expiry_date || null,
+          expiry_date,
           qty_received,
           unit,
           storage_location || null,
