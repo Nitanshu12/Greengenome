@@ -121,7 +121,7 @@ async function initSchema() {
         item_code         VARCHAR(50)   NOT NULL,
         vendor_code       VARCHAR(50)   DEFAULT NULL,
         mfg_date          DATE          DEFAULT NULL,
-        expiry_date       DATE          NOT NULL,
+        expiry_date       DATE          DEFAULT NULL,
         qty_received      INT           NOT NULL,
         qty_issued        INT           NOT NULL DEFAULT 0,
         unit              VARCHAR(50)   NOT NULL,

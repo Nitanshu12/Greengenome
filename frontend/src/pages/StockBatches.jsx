@@ -304,7 +304,7 @@ export default function StockBatches() {
   const expiryBadge = (dateStr) => {
     if (!dateStr) return null;
     const date = new Date(dateStr);
-    if (isNaN(date.getTime()) || date.getFullYear() < 2000) return null;
+    if (isNaN(date.getTime())) return null;
     const days = Math.ceil((date - new Date()) / (1000 * 60 * 60 * 24));
     if (days < 0) return <span style={{ background: "#fee2e2", color: "#991b1b", borderRadius: 4, padding: "2px 6px", fontSize: 11, marginLeft: 6 }}>Expired</span>;
     if (days <= 90) return <span style={{ background: "#fef3c7", color: "#92400e", borderRadius: 4, padding: "2px 6px", fontSize: 11, marginLeft: 6 }}>{days}d left</span>;
@@ -314,7 +314,7 @@ export default function StockBatches() {
   const formatDateMMM_YY = (dateStr) => {
     if (!dateStr) return <span style={{ color: "var(--muted)" }}>NULL</span>;
     const date = new Date(dateStr);
-    if (isNaN(date.getTime()) || date.getFullYear() < 2000) {
+    if (isNaN(date.getTime())) {
       return <span style={{ color: "var(--muted)" }}>NULL</span>;
     }
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
