@@ -150,7 +150,7 @@ router.post("/", ...adminOnly, async (req, res) => {
 // qty_issued is updated separately via the issue-stock endpoint below.
 router.put("/:id", ...adminOnly, async (req, res) => {
   try {
-    const { storage_location, status, remarks } = req.body;
+    const { storage_location, status, remarks, expiry_date } = req.body;
 
     const conn = await pool.getConnection();
     try {
@@ -158,12 +158,14 @@ router.put("/:id", ...adminOnly, async (req, res) => {
         `UPDATE stock_batches
          SET storage_location = COALESCE(?, storage_location),
              status           = COALESCE(?, status),
-             remarks          = COALESCE(?, remarks)
+             remarks          = COALESCE(?, remarks),
+             expiry_date      = ?
          WHERE batch_id = ?`,
         [
           storage_location ?? null,
           status ?? null,
           remarks ?? null,
+          expiry_date || null,
           req.params.id,
         ]
       );
@@ -220,9 +222,6 @@ router.post("/:id/issue", ...adminOnly, async (req, res) => {
   }
 });
 
-// ── DELETE /api/stock-batches/:id ────────────────────────────────
-// Only allowed if no stock has been issued from this batch.
-// Prevents deleting a batch that has already been used in kit assembly.
 router.delete("/:id", ...adminOnly, async (req, res) => {
   try {
     const conn = await pool.getConnection();

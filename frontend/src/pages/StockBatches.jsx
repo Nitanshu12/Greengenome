@@ -250,6 +250,7 @@ export default function StockBatches() {
           storage_location: form.storage_location,
           status: form.status,
           remarks: form.remarks,
+          expiry_date: form.expiry_date,
         });
         toast("Batch updated");
       } else {

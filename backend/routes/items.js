@@ -93,7 +93,7 @@ router.post("/", ...adminOnly, async (req, res) => {
       item_code, name, specification,
       category, product_category, material, brand,
       unit, unit_cost = 0, gst_percent = 0,
-      min_stock = 0
+      min_stock = 0, is_active = 1
     } = req.body;
 
     if (!item_code || !name || !category || !unit) {
@@ -104,14 +104,14 @@ router.post("/", ...adminOnly, async (req, res) => {
       `INSERT INTO items
         (item_code, name, specification, category,
          product_category, material, brand,
-         unit, unit_cost, gst_percent, min_stock)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+         unit, unit_cost, gst_percent, min_stock, is_active)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         item_code.trim(), name.trim(), specification || null,
         category,
         product_category || null, material || null, brand || null,
         unit, Number(unit_cost), Number(gst_percent),
-        Number(min_stock)
+        Number(min_stock), is_active ? 1 : 0
       ]
     );
     const [rows] = await pool.query("SELECT * FROM items WHERE item_code = ?", [item_code.trim()]);
@@ -131,7 +131,7 @@ router.put("/:item_code", ...adminOnly, async (req, res) => {
       name, specification,
       category, product_category, material, brand,
       unit, unit_cost, gst_percent,
-      min_stock
+      min_stock, is_active
     } = req.body;
 
     if (!name || !category || !unit) {
@@ -143,13 +143,13 @@ router.put("/:item_code", ...adminOnly, async (req, res) => {
         name=?, specification=?,
         category=?, product_category=?, material=?, brand=?,
         unit=?, unit_cost=?, gst_percent=?,
-        min_stock=?
+        min_stock=?, is_active=?
        WHERE item_code=?`,
       [
         name.trim(), specification || null,
         category, product_category || null, material || null, brand || null,
         unit, Number(unit_cost), Number(gst_percent),
-        Number(min_stock),
+        Number(min_stock), is_active !== undefined ? (is_active ? 1 : 0) : 1,
         req.params.item_code
       ]
     );

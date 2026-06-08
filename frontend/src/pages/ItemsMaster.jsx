@@ -8,7 +8,8 @@ const UNITS = ["Piece", "Box", "Pack", "Strip", "Vial", "Bottle", "Roll", "Pair"
 const EMPTY_FORM = {
   item_code: "", name: "", specification: "",
   category: "", product_category: "", material: "", brand: "",
-  unit: "", unit_cost: "", gst_percent: "", min_stock: ""
+  unit: "", unit_cost: "", gst_percent: "", min_stock: "",
+  is_active: true
 };
 
 function ItemFormModal({ initial, nextCode, onSave, onClose, saving, categories }) {
@@ -122,6 +123,33 @@ function ItemFormModal({ initial, nextCode, onSave, onClose, saving, categories 
           <input className="form-input" type="number" min="0"
             value={form.min_stock}
             onChange={e => set("min_stock", e.target.value)} placeholder="0" />
+        </div>
+
+        {/* ── Active / Inactive ── */}
+        <div className="form-group" style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+          <label style={{
+            position: "relative", display: "inline-block", width: 44, height: 24, cursor: "pointer"
+          }}>
+            <input
+              type="checkbox"
+              checked={!!form.is_active}
+              onChange={e => set("is_active", e.target.checked)}
+              style={{ opacity: 0, width: 0, height: 0 }}
+            />
+            <span style={{
+              position: "absolute", inset: 0, borderRadius: 12,
+              background: form.is_active ? "#22c55e" : "#94a3b8",
+              transition: "background .2s"
+            }} />
+            <span style={{
+              position: "absolute", top: 3, left: form.is_active ? 23 : 3,
+              width: 18, height: 18, borderRadius: "50%", background: "#fff",
+              transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)"
+            }} />
+          </label>
+          <span className="form-label" style={{ margin: 0 }}>
+            {form.is_active ? "Active" : "Inactive"}
+          </span>
         </div>
 
         {/* ── Actions ── */}
@@ -307,16 +335,17 @@ export default function ItemsMaster() {
               <thead>
                 <tr>
                   <th style={{ width: "7%" }}>Item Code</th>
-                  <th style={{ width: "13%" }}>Name</th>
-                  <th style={{ width: "10%" }}>Specification</th>
-                  <th style={{ width: "9%" }}>Industry Type</th>
-                  <th style={{ width: "9%" }}>Product Category</th>
-                  <th style={{ width: "8%" }}>Material</th>
-                  <th style={{ width: "9%" }}>Brand</th>
+                  <th style={{ width: "12%" }}>Name</th>
+                  <th style={{ width: "9%" }}>Specification</th>
+                  <th style={{ width: "8%" }}>Industry Type</th>
+                  <th style={{ width: "8%" }}>Product Category</th>
+                  <th style={{ width: "7%" }}>Material</th>
+                  <th style={{ width: "8%" }}>Brand</th>
                   <th style={{ width: "5%" }}>Unit</th>
-                  <th style={{ width: "8%" }}>Unit Cost</th>
+                  <th style={{ width: "7%" }}>Unit Cost</th>
                   <th style={{ width: "5%" }}>GST %</th>
-                  <th style={{ width: "7%" }}>Min Stock</th>
+                  <th style={{ width: "6%" }}>Min Stock</th>
+                  <th style={{ width: "6%" }}>Status</th>
                   {isAdmin && <th style={{ width: "10%" }}>Actions</th>}
                 </tr>
               </thead>
@@ -350,6 +379,12 @@ export default function ItemsMaster() {
                       {item.gst_percent > 0 ? `${item.gst_percent}%` : "—"}
                     </td>
                     <td style={{ color: "var(--muted)" }}>{item.min_stock ?? "—"}</td>
+                    <td>
+                      <span className={`tag ${item.is_active ? "tag-green" : "tag-gray"}`}
+                        style={!item.is_active ? { opacity: 0.7 } : {}}>
+                        {item.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </td>
                     {isAdmin && (
                       <td>
                         <div className="flex gap-2">
@@ -410,7 +445,8 @@ export default function ItemsMaster() {
             unit:             editTarget.unit             || "",
             unit_cost:        editTarget.unit_cost        ?? "",
             gst_percent:      editTarget.gst_percent      ?? "",
-            min_stock:        editTarget.min_stock        ?? ""
+            min_stock:        editTarget.min_stock        ?? "",
+            is_active:        !!editTarget.is_active
           } : null}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditTarget(null); }}

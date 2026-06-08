@@ -52,6 +52,11 @@ async function initSchema() {
       ALTER TABLE items ADD COLUMN IF NOT EXISTS brand VARCHAR(200) DEFAULT NULL
     `);
 
+    // Add is_active column (default active) — safe to re-run
+    await conn.query(`
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1
+    `);
+
     await conn.query(`
       CREATE TABLE IF NOT EXISTS bom_disaster (
         item_code    VARCHAR(50) PRIMARY KEY,
