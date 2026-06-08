@@ -442,7 +442,11 @@ export default function StockBatches() {
                           {row.item_code}
                         </span>
                       </td>
-                      <td style={{ fontWeight: 500 }}>{row.item_name}</td>
+                      <td style={{ whiteSpace: "normal" }}>
+                        <div style={{ fontWeight: 500, lineHeight: "1.25", whiteSpace: "normal", wordBreak: "break-word" }}>
+                          {row.item_name}
+                        </div>
+                      </td>
                       <td style={{ color: "var(--muted)" }}>{row.unit}</td>
                       <td style={{
                         textAlign: "right", fontWeight: 700,
