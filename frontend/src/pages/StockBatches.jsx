@@ -515,17 +515,17 @@ export default function StockBatches() {
                 <thead>
                   <tr>
                     <th style={{ width: "7%" }}>Item</th>
-                    <th style={{ width: "15%" }}>Item Name</th>
-                    <th style={{ width: "9%" }}>Batch No</th>
+                    <th style={{ width: "19%" }}>Item Name</th>
+                    <th style={{ width: "8%" }}>Batch No</th>
                     <th style={{ width: "7%" }}>Vendor</th>
                     <th style={{ width: "7%" }}>Mfg Date</th>
-                    <th style={{ width: "9%" }}>Expiry Date</th>
-                    <th style={{ width: "7%", textAlign: "right" }}>Received</th>
-                    <th style={{ width: "7%", textAlign: "right" }}>Issued</th>
-                    <th style={{ width: "7%", textAlign: "right" }}>In Hand</th>
-                    <th style={{ width: "8%" }}>Location</th>
+                    <th style={{ width: "8%" }}>Expiry Date</th>
+                    <th style={{ width: "5%", textAlign: "right" }}>Received</th>
+                    <th style={{ width: "5%", textAlign: "right" }}>Issued</th>
+                    <th style={{ width: "5%", textAlign: "right" }}>In Hand</th>
+                    <th style={{ width: "6%" }}>Location</th>
                     <th style={{ width: "7%" }}>Status</th>
-                    {isAdmin && <th style={{ width: "10%", minWidth: 150 }}>Actions</th>}
+                    {isAdmin && <th style={{ width: "16%", minWidth: 165 }}>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -596,8 +596,8 @@ export default function StockBatches() {
                           </span>
                         </td>
                         {isAdmin && (
-                          <td style={{ minWidth: 150 }}>
-                            <div className="flex gap-2">
+                          <td style={{ minWidth: 165 }}>
+                            <div className="flex" style={{ gap: 5 }}>
                               {b.status === "active" && inHand > 0 && (
                                 <button className="btn btn-ghost btn-sm"
                                   onClick={() => setIssueTarget(b)}>
