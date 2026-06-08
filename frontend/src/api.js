@@ -72,6 +72,7 @@ export const api = {
   deleteLink:         (item_code, vendor_code)       => request("DELETE", `/item-vendors/${item_code}/${vendor_code}`),
   getDocs:            (vendor_code) => request("GET",    `/item-vendors/documents/${vendor_code}`),
   addDoc:             (body)        => request("POST",   "/item-vendors/documents", body),
+  uploadDoc:          (formData)    => request("POST",   "/item-vendors/documents/upload", formData, true),
   deleteDoc:          (id)          => request("DELETE", `/item-vendors/documents/${id}`),
 
   // BOM Disaster

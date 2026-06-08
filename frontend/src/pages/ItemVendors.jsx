@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "../api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/Toast";
@@ -145,13 +145,23 @@ function LinkModal({ initial, items, vendors, onSave, onClose, saving }) {
   );
 }
 
+const API_ROOT = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+
+function docHref(url) {
+  if (!url) return "#";
+  if (url.startsWith("/uploads/")) return `${API_ROOT}${url}`;
+  return url;
+}
+
 // ── Document modal ────────────────────────────────────────────────
 function DocsModal({ vendor, isAdmin, onClose, toast }) {
-  const [docs, setDocs]       = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [name, setName]       = useState("");
-  const [url, setUrl]         = useState("");
-  const [adding, setAdding]   = useState(false);
+  const [docs, setDocs]         = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [name, setName]         = useState("");
+  const [file, setFile]         = useState(null);
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     api.getDocs(vendor.vendor_code)
@@ -160,17 +170,43 @@ function DocsModal({ vendor, isAdmin, onClose, toast }) {
       .finally(() => setLoading(false));
   }, [vendor.vendor_code]);
 
-  async function handleAdd() {
-    if (!name.trim() || !url.trim()) return toast("Name and URL are required", "error");
-    setAdding(true);
+  function pickFile(f) {
+    if (!f) return;
+    const ext = f.name.split(".").pop().toLowerCase();
+    if (!["pdf", "jpg", "jpeg", "png"].includes(ext)) {
+      toast("Only PDF, JPG, PNG files are allowed", "error");
+      return;
+    }
+    setFile(f);
+    if (!name.trim()) setName(f.name.replace(/\.[^.]+$/, ""));
+  }
+
+  function handleDragOver(e)  { e.preventDefault(); setDragging(true); }
+  function handleDragLeave()  { setDragging(false); }
+  function handleDrop(e) {
+    e.preventDefault();
+    setDragging(false);
+    const f = e.dataTransfer.files[0];
+    if (f) pickFile(f);
+  }
+
+  async function handleUpload() {
+    if (!file)        return toast("Please select a file", "error");
+    if (!name.trim()) return toast("Document name is required", "error");
+    setUploading(true);
     try {
-      await api.addDoc({ vendor_code: vendor.vendor_code, document_name: name, document_url: url });
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("vendor_code", vendor.vendor_code);
+      fd.append("document_name", name.trim());
+      await api.uploadDoc(fd);
       const d = await api.getDocs(vendor.vendor_code);
       setDocs(d.data);
-      setName(""); setUrl("");
-      toast("Document added");
+      setFile(null);
+      setName("");
+      toast("Document uploaded");
     } catch (e) { toast(e.message, "error"); }
-    finally { setAdding(false); }
+    finally { setUploading(false); }
   }
 
   async function handleDelete(id) {
@@ -184,50 +220,94 @@ function DocsModal({ vendor, isAdmin, onClose, toast }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 500, width: "95%", maxHeight: "85vh", overflowY: "auto" }}
+      <div className="modal" style={{ maxWidth: 520, width: "95%", maxHeight: "90vh", overflowY: "auto" }}
         onClick={e => e.stopPropagation()}>
         <div className="modal-title">
           Documents — {vendor.vendor_code} · {vendor.business_name}
         </div>
 
+        {/* Existing docs list */}
         {loading ? (
           <div style={{ textAlign: "center", padding: 30 }}><div className="spinner" /></div>
         ) : docs.length === 0 ? (
-          <div style={{ color: "var(--muted)", padding: "16px 0", fontSize: 14 }}>No documents yet.</div>
+          <div style={{ color: "var(--muted)", padding: "12px 0", fontSize: 14 }}>No documents yet.</div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
             {docs.map(d => (
               <div key={d.id} style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 background: "var(--bg-alt, #f8f9fa)", borderRadius: 8, padding: "10px 14px"
               }}>
-                <a href={d.document_url} target="_blank" rel="noreferrer"
+                <a href={docHref(d.document_url)} target="_blank" rel="noreferrer"
                   style={{ fontWeight: 500, color: "var(--primary)", textDecoration: "none", fontSize: 14 }}>
-                  📄 {d.document_name}
+                  {d.document_url?.toLowerCase().endsWith(".pdf") ? "📄" : "🖼"} {d.document_name}
                 </a>
                 {isAdmin && (
-                  <button className="btn btn-danger btn-sm" onClick={() => handleDelete(d.id)}>
-                    Delete
-                  </button>
+                  <button className="btn btn-danger btn-sm" onClick={() => handleDelete(d.id)}>Delete</button>
                 )}
               </div>
             ))}
           </div>
         )}
 
+        {/* Upload zone (admin only) */}
         {isAdmin && (
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-            <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 14 }}>Add Document</div>
+            <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>Upload Document</div>
+
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                border: `2px dashed ${dragging ? "#2563eb" : "var(--border, #d1d5db)"}`,
+                borderRadius: 10,
+                padding: "24px 16px",
+                textAlign: "center",
+                cursor: "pointer",
+                background: dragging ? "#eff6ff" : "#fafafa",
+                transition: "all 0.15s",
+                marginBottom: 12
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                style={{ display: "none" }}
+                onChange={e => pickFile(e.target.files[0])}
+              />
+              {file ? (
+                <div>
+                  <div style={{ fontSize: 28, marginBottom: 6 }}>
+                    {file.name.toLowerCase().endsWith(".pdf") ? "📄" : "🖼"}
+                  </div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{file.name}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                    {(file.size / 1024).toFixed(1)} KB · click to change
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>Drag & drop a file here</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                    or click to browse · PDF, JPG, PNG · max 10 MB
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="form-group">
-              <input className="form-input" placeholder="Document name (e.g. GST Certificate)"
+              <label className="form-label">Document Name *</label>
+              <input className="form-input" placeholder="e.g. GST Certificate, Quality Report"
                 value={name} onChange={e => setName(e.target.value)} />
             </div>
-            <div className="form-group">
-              <input className="form-input" placeholder="URL or PDF link"
-                value={url} onChange={e => setUrl(e.target.value)} />
-            </div>
-            <button className="btn btn-primary" onClick={handleAdd} disabled={adding}>
-              {adding ? "Adding…" : "Add Document"}
+
+            <button className="btn btn-primary" onClick={handleUpload}
+              disabled={uploading || !file}>
+              {uploading ? "Uploading…" : "Upload Document"}
             </button>
           </div>
         )}

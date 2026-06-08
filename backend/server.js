@@ -142,6 +142,9 @@ app.use("/api",                require("./routes/kits"));
 
 
 
+// ── Serve uploaded files (vendor docs, etc.) ────────────────
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 // ── Serve React frontend (production) ────────────────────────
 if (isProd) {
   const distPath = path.join(__dirname, "../frontend/dist");

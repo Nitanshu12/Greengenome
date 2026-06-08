@@ -1,8 +1,34 @@
 const router = require("express").Router();
+const path   = require("path");
+const fs     = require("fs");
+const multer = require("multer");
 const pool   = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
+
+// ── Multer for vendor document uploads ───────────────────────
+const docStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, "../uploads/vendor-docs");
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const safe = Date.now() + "-" + file.originalname.replace(/\s+/g, "_");
+    cb(null, safe);
+  }
+});
+
+const uploadDocMiddleware = multer({
+  storage: docStorage,
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if ([".pdf", ".jpg", ".jpeg", ".png"].includes(ext)) return cb(null, true);
+    cb(new Error("Only PDF, JPG, PNG files are allowed"));
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
 
 // ── GET /api/item-vendors ─────────────────────────────────────────
 router.get("/", requireLogin, async (req, res) => {
@@ -123,6 +149,26 @@ router.post("/documents", ...adminOnly, async (req, res) => {
     );
     res.status(201).json({ msg: "Document added" });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/item-vendors/documents/upload ───────────────────────
+router.post("/documents/upload", ...adminOnly, uploadDocMiddleware.single("file"), async (req, res) => {
+  try {
+    const { vendor_code, document_name } = req.body;
+    if (!vendor_code || !document_name || !req.file)
+      return res.status(400).json({ error: "vendor_code, document_name and file are required" });
+
+    const document_url = `/uploads/vendor-docs/${req.file.filename}`;
+    await pool.query(
+      "INSERT INTO vendor_documents (vendor_code, document_name, document_url) VALUES (?,?,?)",
+      [vendor_code, document_name.trim(), document_url]
+    );
+    res.status(201).json({ msg: "Document uploaded", document_url });
+  } catch (err) {
+    // Clean up uploaded file if DB insert fails
+    if (req.file) fs.unlink(req.file.path, () => {});
     res.status(500).json({ error: err.message });
   }
 });
