@@ -525,7 +525,7 @@ export default function StockBatches() {
                     <th style={{ width: "7%", textAlign: "right" }}>In Hand</th>
                     <th style={{ width: "8%" }}>Location</th>
                     <th style={{ width: "7%" }}>Status</th>
-                    {isAdmin && <th style={{ width: "10%", minWidth: 180 }}>Actions</th>}
+                    {isAdmin && <th style={{ width: "10%", minWidth: 150 }}>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -596,7 +596,7 @@ export default function StockBatches() {
                           </span>
                         </td>
                         {isAdmin && (
-                          <td style={{ minWidth: 180 }}>
+                          <td style={{ minWidth: 150 }}>
                             <div className="flex gap-2">
                               {b.status === "active" && inHand > 0 && (
                                 <button className="btn btn-ghost btn-sm"
