@@ -20,15 +20,50 @@ const EMPTY_BATCH_FORM = {
 };
 
 // ── Goods Receipt (Add) Modal ─────────────────────────────────────
-function BatchFormModal({ initial, items, vendors, onSave, onClose, saving }) {
+function BatchFormModal({ initial, items, vendors, itemVendors, onSave, onClose, saving }) {
   const [form, setForm] = useState(() => initial ?? { ...EMPTY_BATCH_FORM });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const selectedItem = items.find(i => i.item_code === form.item_code);
 
+  // Filter vendors based on selected item code
+  const filteredVendors = useMemo(() => {
+    if (!form.item_code) return [];
+    const mapping = itemVendors.find(iv => iv.item_code === form.item_code);
+    const mapped = mapping ? mapping.vendors : [];
+
+    // If editing a batch, preserve the initial vendor option in the list
+    if (initial && initial.vendor_code) {
+      const exists = mapped.some(v => v.vendor_code === initial.vendor_code);
+      if (!exists) {
+        const fullVendor = vendors.find(v => v.vendor_code === initial.vendor_code);
+        if (fullVendor) {
+          return [...mapped, fullVendor];
+        }
+      }
+    }
+    return mapped;
+  }, [form.item_code, itemVendors, initial, vendors]);
+
+  // Effect to set unit and clear invalid vendor when item changes
   useEffect(() => {
-    if (selectedItem && !initial) set("unit", selectedItem.unit);
-  }, [form.item_code]);
+    if (selectedItem && !initial) {
+      set("unit", selectedItem.unit);
+
+      // Check if current vendor is valid for the new item
+      const mapping = itemVendors.find(iv => iv.item_code === form.item_code);
+      const mappedVendors = mapping ? mapping.vendors : [];
+      const isVendorValid = mappedVendors.some(v => v.vendor_code === form.vendor_code);
+      if (!isVendorValid) {
+        set("vendor_code", "");
+      }
+    }
+  }, [form.item_code, selectedItem, initial, itemVendors]);
+
+  // Filter items to show only active items (or the current item when editing)
+  const activeItems = useMemo(() => {
+    return items.filter(i => i.is_active !== 0 || i.item_code === form.item_code);
+  }, [items, form.item_code]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -46,7 +81,7 @@ function BatchFormModal({ initial, items, vendors, onSave, onClose, saving }) {
             <select className="form-select" value={form.item_code}
               onChange={e => set("item_code", e.target.value)} disabled={!!initial}>
               <option value="">Select item…</option>
-              {items.map(i => (
+              {activeItems.map(i => (
                 <option key={i.item_code} value={i.item_code}>
                   {i.item_code} — {i.name}
                 </option>
@@ -56,9 +91,12 @@ function BatchFormModal({ initial, items, vendors, onSave, onClose, saving }) {
           <div className="form-group">
             <label className="form-label">Vendor</label>
             <select className="form-select" value={form.vendor_code}
-              onChange={e => set("vendor_code", e.target.value)}>
-              <option value="">Select vendor…</option>
-              {vendors.map(v => (
+              onChange={e => set("vendor_code", e.target.value)}
+              disabled={!form.item_code}>
+              <option value="">
+                {!form.item_code ? "Select an item first…" : "Select vendor…"}
+              </option>
+              {filteredVendors.map(v => (
                 <option key={v.vendor_code} value={v.vendor_code}>
                   {v.vendor_code} — {v.business_name}
                 </option>
@@ -198,6 +236,7 @@ export default function StockBatches() {
   const [batches, setBatches] = useState([]);
   const [items, setItems] = useState([]);
   const [vendors, setVendors] = useState([]);
+  const [itemVendors, setItemVendors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -236,6 +275,7 @@ export default function StockBatches() {
   useEffect(() => {
     api.getItems().then(d => setItems(d.data)).catch(() => { });
     api.getVendors().then(d => setVendors(d.data)).catch(() => { });
+    api.getItemVendors().then(d => setItemVendors(d.data)).catch(() => { });
   }, []);
 
   const handleSave = async (form) => {
@@ -474,18 +514,18 @@ export default function StockBatches() {
               <table className="items-master-table">
                 <thead>
                   <tr>
-                    <th>Item</th>
-                    <th>Item Name</th>
-                    <th>Batch No</th>
-                    <th>Vendor</th>
-                    <th>Mfg Date</th>
-                    <th>Expiry Date</th>
-                    <th style={{ textAlign: "right" }}>Received</th>
-                    <th style={{ textAlign: "right" }}>Issued</th>
-                    <th style={{ textAlign: "right" }}>In Hand</th>
-                    <th>Location</th>
-                    <th>Status</th>
-                    {isAdmin && <th>Actions</th>}
+                    <th style={{ width: "7%" }}>Item</th>
+                    <th style={{ width: "15%" }}>Item Name</th>
+                    <th style={{ width: "9%" }}>Batch No</th>
+                    <th style={{ width: "7%" }}>Vendor</th>
+                    <th style={{ width: "7%" }}>Mfg Date</th>
+                    <th style={{ width: "9%" }}>Expiry Date</th>
+                    <th style={{ width: "7%", textAlign: "right" }}>Received</th>
+                    <th style={{ width: "7%", textAlign: "right" }}>Issued</th>
+                    <th style={{ width: "7%", textAlign: "right" }}>In Hand</th>
+                    <th style={{ width: "8%" }}>Location</th>
+                    <th style={{ width: "7%" }}>Status</th>
+                    {isAdmin && <th style={{ width: "10%", minWidth: 180 }}>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -556,7 +596,7 @@ export default function StockBatches() {
                           </span>
                         </td>
                         {isAdmin && (
-                          <td>
+                          <td style={{ minWidth: 180 }}>
                             <div className="flex gap-2">
                               {b.status === "active" && inHand > 0 && (
                                 <button className="btn btn-ghost btn-sm"
@@ -600,6 +640,7 @@ export default function StockBatches() {
           } : null}
           items={items}
           vendors={vendors}
+          itemVendors={itemVendors}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditTarget(null); }}
           saving={saving}
