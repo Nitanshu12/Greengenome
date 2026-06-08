@@ -368,7 +368,11 @@ export default function ItemsMaster() {
                         {item.name}
                       </div>
                     </td>
-                    <td>{truncCell(item.specification, 180)}</td>
+                    <td style={{ whiteSpace: "normal" }}>
+                      <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: "1.25", whiteSpace: "normal", wordBreak: "break-word" }}>
+                        {item.specification || <span style={{ color: "var(--muted)" }}>NULL</span>}
+                      </div>
+                    </td>
                     <td>{categoryTag(item.category)}</td>
                     <td>{truncCell(item.product_category, 140)}</td>
                     <td>{truncCell(item.material, 130)}</td>
