@@ -539,11 +539,13 @@ export default function StockBatches() {
                             {b.item_code}
                           </div>
                         </td>
-                        <td>
+                        <td style={{ whiteSpace: "normal" }}>
                           <div style={{
-                            fontWeight: 500, maxWidth: 180, overflow: "hidden",
-                            textOverflow: "ellipsis", whiteSpace: "nowrap"
-                          }} title={b.item_name}>
+                            fontWeight: 500,
+                            lineHeight: "1.25",
+                            whiteSpace: "normal",
+                            wordBreak: "break-word"
+                          }}>
                             {b.item_name}
                           </div>
                         </td>

@@ -358,9 +358,13 @@ export default function ItemsMaster() {
                         {item.item_code}
                       </span>
                     </td>
-                    <td style={{ maxWidth: 200 }}>
-                      <div style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis",
-                        whiteSpace: "nowrap", maxWidth: 200 }} title={item.name}>
+                    <td style={{ whiteSpace: "normal" }}>
+                      <div style={{
+                        fontWeight: 500,
+                        lineHeight: "1.25",
+                        whiteSpace: "normal",
+                        wordBreak: "break-word"
+                      }}>
                         {item.name}
                       </div>
                     </td>
