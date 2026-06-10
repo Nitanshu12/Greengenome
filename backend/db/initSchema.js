@@ -114,6 +114,17 @@ async function initSchema() {
     `);
 
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS item_documents (
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        item_code     VARCHAR(50)  NOT NULL,
+        document_name VARCHAR(200) NOT NULL,
+        document_url  TEXT         NOT NULL,
+        created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_code) REFERENCES items(item_code) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS stock_batches (
         batch_id          INT AUTO_INCREMENT PRIMARY KEY,
         supplier_batch_no VARCHAR(100)  DEFAULT NULL,

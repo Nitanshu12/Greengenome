@@ -1,34 +1,8 @@
 const router = require("express").Router();
-const path   = require("path");
-const fs     = require("fs");
-const multer = require("multer");
 const pool   = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
-
-// ── Multer for vendor document uploads ───────────────────────
-const docStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, "../uploads/vendor-docs");
-    fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const safe = Date.now() + "-" + file.originalname.replace(/\s+/g, "_");
-    cb(null, safe);
-  }
-});
-
-const uploadDocMiddleware = multer({
-  storage: docStorage,
-  fileFilter: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if ([".pdf", ".jpg", ".jpeg", ".png"].includes(ext)) return cb(null, true);
-    cb(new Error("Only PDF, JPG, PNG files are allowed"));
-  },
-  limits: { fileSize: 10 * 1024 * 1024 }
-});
 
 // ── GET /api/item-vendors ─────────────────────────────────────────
 router.get("/", requireLogin, async (req, res) => {
@@ -118,70 +92,6 @@ router.get("/items-list", requireLogin, async (req, res) => {
       "SELECT item_code, name, unit_cost FROM items ORDER BY item_code ASC"
     );
     res.json({ data: rows });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ── GET /api/item-vendors/documents/:vendor_code ─────────────────
-router.get("/documents/:vendor_code", requireLogin, async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      "SELECT id, document_name, document_url, created_at FROM vendor_documents WHERE vendor_code=? ORDER BY id ASC",
-      [req.params.vendor_code]
-    );
-    res.json({ data: rows });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ── POST /api/item-vendors/documents ─────────────────────────────
-router.post("/documents", ...adminOnly, async (req, res) => {
-  try {
-    const { vendor_code, document_name, document_url } = req.body;
-    if (!vendor_code || !document_name || !document_url)
-      return res.status(400).json({ error: "vendor_code, document_name and document_url are required" });
-
-    await pool.query(
-      "INSERT INTO vendor_documents (vendor_code, document_name, document_url) VALUES (?,?,?)",
-      [vendor_code, document_name.trim(), document_url.trim()]
-    );
-    res.status(201).json({ msg: "Document added" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ── POST /api/item-vendors/documents/upload ───────────────────────
-router.post("/documents/upload", ...adminOnly, uploadDocMiddleware.single("file"), async (req, res) => {
-  try {
-    const { vendor_code, document_name } = req.body;
-    if (!vendor_code || !document_name || !req.file)
-      return res.status(400).json({ error: "vendor_code, document_name and file are required" });
-
-    const document_url = `/uploads/vendor-docs/${req.file.filename}`;
-    await pool.query(
-      "INSERT INTO vendor_documents (vendor_code, document_name, document_url) VALUES (?,?,?)",
-      [vendor_code, document_name.trim(), document_url]
-    );
-    res.status(201).json({ msg: "Document uploaded", document_url });
-  } catch (err) {
-    // Clean up uploaded file if DB insert fails
-    if (req.file) fs.unlink(req.file.path, () => {});
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ── DELETE /api/item-vendors/documents/:id ────────────────────────
-router.delete("/documents/:id", ...adminOnly, async (req, res) => {
-  try {
-    const [result] = await pool.query(
-      "DELETE FROM vendor_documents WHERE id=?", [req.params.id]
-    );
-    if (result.affectedRows === 0)
-      return res.status(404).json({ error: "Document not found" });
-    res.json({ msg: "Document deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
