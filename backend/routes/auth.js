@@ -17,7 +17,8 @@ router.post("/login", async (req, res) => {
     const match = await user.comparePassword(password);
     if (!match) return res.status(401).json({ error: "Invalid credentials" });
 
-    // Save to session
+    // Save to session — explicit save() ensures the cookie is written
+    // before the response is sent (avoids race with async MongoStore)
     req.session.user = {
       id: user._id,
       username: user.username,
@@ -25,9 +26,15 @@ router.post("/login", async (req, res) => {
       disabled: user.disabled
     };
 
-    res.json({
-      msg: "Logged in",
-      user: { username: user.username, role: user.role }
+    req.session.save((err) => {
+      if (err) {
+        console.error("Session save error:", err);
+        return res.status(500).json({ error: "Session could not be saved" });
+      }
+      res.json({
+        msg: "Logged in",
+        user: { username: user.username, role: user.role }
+      });
     });
 
   } catch (err) {

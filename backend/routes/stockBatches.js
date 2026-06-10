@@ -4,9 +4,6 @@ const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
 
-// ── GET /api/stock-batches/summary ───────────────────────────────
-// Returns qty_in_hand per item from the view.
-// Used by the Items Master page to show the Stock column.
 router.get("/summary", requireLogin, async (req, res) => {
   try {
     const conn = await pool.getConnection();
@@ -25,10 +22,6 @@ router.get("/summary", requireLogin, async (req, res) => {
   }
 });
 
-// ── GET /api/stock-batches ────────────────────────────────────────
-// List all batches. Supports ?item_code=, ?status=, ?q= (search).
-// Joins items table to bring in item_name.
-// qty_in_hand is computed inline (qty_received - qty_issued).
 router.get("/", requireLogin, async (req, res) => {
   try {
     const { item_code, status, q } = req.query;
@@ -86,9 +79,6 @@ router.get("/", requireLogin, async (req, res) => {
   }
 });
 
-// ── POST /api/stock-batches ───────────────────────────────────────
-// Record a new goods receipt (a delivery arrived).
-// qty_issued starts at 0 — nothing has been used from this batch yet.
 router.post("/", ...adminOnly, async (req, res) => {
   try {
     const {

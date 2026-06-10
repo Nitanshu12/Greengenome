@@ -24,6 +24,13 @@ async function request(method, path, body, isFormData = false) {
   }
 
   const data = await res.json();
+  if (res.status === 401) {
+    // Notify useAuth so it can redirect through React Router.
+    // api.js has no React context, so the decision of whether to redirect
+    // belongs in useAuth (only redirect if user WAS logged in).
+    window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+    throw new Error(data.error || "Session expired. Please log in again.");
+  }
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
 }
@@ -88,6 +95,12 @@ export const api = {
   updateStockBatch: (id, body)    => request("PUT",    `/stock-batches/${id}`, body),
   issueStock:       (id, body)    => request("POST",   `/stock-batches/${id}/issue`, body),
   deleteStockBatch: (id)          => request("DELETE", `/stock-batches/${id}`),
+
+  // Kit Assembly
+  createKit:     (body) => request("POST", "/kit-assembly/create", body),
+  getKitHistory: ()     => request("GET",  "/kit-assembly/history"),
+  getKitDetails: (id)   => request("GET",  `/kit-assembly/${id}/details`),
+  cancelKit:     (id)   => request("POST", `/kit-assembly/${id}/cancel`),
 
   // Admin — users
   getUsers:       ()      => request("GET",   "/admin/users"),

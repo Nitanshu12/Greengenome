@@ -4,6 +4,7 @@ const mysql = require("mysql2/promise");
 
 const pool = mysql.createPool({
   host:     process.env.DB_HOST     || "localhost",
+  port:     process.env.DB_PORT     || 3306,
   user:     process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
@@ -110,10 +111,8 @@ async function seed() {
       if (result.affectedRows === 1) vendorInserted++; else vendorUpdated++;
     }
 
-    // 2. Build vendor_code → id map
-    const [vcRows] = await conn.query("SELECT id, vendor_code FROM vendors");
-    const vendorIdMap = {};
-    for (const row of vcRows) vendorIdMap[row.vendor_code] = row.id;
+    // 2. Build set of inserted vendor_codes for quick lookup
+    const insertedVendorCodes = new Set(vendors.map(v => v.vendor_code));
 
     // 3. Verify item codes exist
     const itemCodes = Object.keys(relMap);
@@ -139,16 +138,15 @@ async function seed() {
         continue;
       }
       for (const [vendorCode, rel] of Object.entries(vendorsForItem)) {
-        const vendorId = vendorIdMap[vendorCode];
-        if (!vendorId) { relSkipped++; continue; }
+        if (!insertedVendorCodes.has(vendorCode)) { relSkipped++; continue; }
 
         const [result] = await conn.query(
-          `INSERT INTO item_vendors (item_code, vendor_id, offer_price, lead_time)
+          `INSERT INTO item_vendors (item_code, vendor_code, offer_price, lead_time)
            VALUES (?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
              offer_price = COALESCE(VALUES(offer_price), item_vendors.offer_price),
              lead_time   = COALESCE(VALUES(lead_time), item_vendors.lead_time)`,
-          [itemCode, vendorId, rel.offer_price, rel.lead_time]
+          [itemCode, vendorCode, rel.offer_price, rel.lead_time]
         );
         if (result.affectedRows === 1) relInserted++; else relUpdated++;
       }

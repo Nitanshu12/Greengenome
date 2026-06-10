@@ -162,6 +162,8 @@ function DocsModal({ vendor, isAdmin, onClose, toast }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const [mode, setMode] = useState("file"); // "file" | "link"
+  const [link, setLink] = useState("");
 
   useEffect(() => {
     api.getDocs(vendor.vendor_code)
@@ -209,6 +211,22 @@ function DocsModal({ vendor, isAdmin, onClose, toast }) {
     finally { setUploading(false); }
   }
 
+  async function handleAddLink() {
+    if (!link.trim()) return toast("URL is required", "error");
+    if (!name.trim()) return toast("Document name is required", "error");
+    try { new URL(link.trim()); } catch { return toast("Please enter a valid URL", "error"); }
+    setUploading(true);
+    try {
+      await api.addDoc({ vendor_code: vendor.vendor_code, document_name: name.trim(), document_url: link.trim() });
+      const d = await api.getDocs(vendor.vendor_code);
+      setDocs(d.data);
+      setLink("");
+      setName("");
+      toast("Link added");
+    } catch (e) { toast(e.message, "error"); }
+    finally { setUploading(false); }
+  }
+
   async function handleDelete(id) {
     if (!confirm("Delete this document?")) return;
     try {
@@ -240,7 +258,9 @@ function DocsModal({ vendor, isAdmin, onClose, toast }) {
               }}>
                 <a href={docHref(d.document_url)} target="_blank" rel="noreferrer"
                   style={{ fontWeight: 500, color: "var(--primary)", textDecoration: "none", fontSize: 14 }}>
-                  {d.document_url?.toLowerCase().endsWith(".pdf") ? "📄" : "🖼"} {d.document_name}
+                  {d.document_url?.startsWith("http") && !d.document_url?.includes("/uploads/")
+                    ? "🔗"
+                    : d.document_url?.toLowerCase().endsWith(".pdf") ? "📄" : "🖼"} {d.document_name}
                 </a>
                 {isAdmin && (
                   <button className="btn btn-danger btn-sm" onClick={() => handleDelete(d.id)}>Delete</button>
@@ -250,65 +270,88 @@ function DocsModal({ vendor, isAdmin, onClose, toast }) {
           </div>
         )}
 
-        {/* Upload zone (admin only) */}
+        {/* Add Document (admin only) */}
         {isAdmin && (
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-            <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>Upload Document</div>
-
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                border: `2px dashed ${dragging ? "#2563eb" : "var(--border, #d1d5db)"}`,
-                borderRadius: 10,
-                padding: "24px 16px",
-                textAlign: "center",
-                cursor: "pointer",
-                background: dragging ? "#eff6ff" : "#fafafa",
-                transition: "all 0.15s",
-                marginBottom: 12
-              }}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                style={{ display: "none" }}
-                onChange={e => pickFile(e.target.files[0])}
-              />
-              {file ? (
-                <div>
-                  <div style={{ fontSize: 28, marginBottom: 6 }}>
-                    {file.name.toLowerCase().endsWith(".pdf") ? "📄" : "🖼"}
-                  </div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{file.name}</div>
-                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-                    {(file.size / 1024).toFixed(1)} KB · click to change
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>Drag & drop a file here</div>
-                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-                    or click to browse · PDF, JPG, PNG · max 10 MB
-                  </div>
-                </div>
-              )}
+            {/* Tab switcher */}
+            <div style={{ display: "flex", gap: 0, marginBottom: 16, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)" }}>
+              {[["file", "📂 Upload File"], ["link", "🔗 Add Link"]].map(([key, label]) => (
+                <button key={key} onClick={() => { setMode(key); setName(""); setFile(null); setLink(""); }}
+                  style={{
+                    flex: 1, padding: "8px 0", border: "none", cursor: "pointer", fontWeight: 600,
+                    fontSize: 13, transition: "all 0.15s",
+                    background: mode === key ? "var(--primary, #2563eb)" : "#f9fafb",
+                    color: mode === key ? "#fff" : "var(--muted)"
+                  }}>
+                  {label}
+                </button>
+              ))}
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Document Name *</label>
-              <input className="form-input" placeholder="e.g. GST Certificate, Quality Report"
-                value={name} onChange={e => setName(e.target.value)} />
-            </div>
-
-            <button className="btn btn-primary" onClick={handleUpload}
-              disabled={uploading || !file}>
-              {uploading ? "Uploading…" : "Upload Document"}
-            </button>
+            {mode === "file" ? (
+              <>
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    border: `2px dashed ${dragging ? "#2563eb" : "var(--border, #d1d5db)"}`,
+                    borderRadius: 10, padding: "24px 16px", textAlign: "center",
+                    cursor: "pointer", background: dragging ? "#eff6ff" : "#fafafa",
+                    transition: "all 0.15s", marginBottom: 12
+                  }}
+                >
+                  <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png"
+                    style={{ display: "none" }} onChange={e => pickFile(e.target.files[0])} />
+                  {file ? (
+                    <div>
+                      <div style={{ fontSize: 28, marginBottom: 6 }}>
+                        {file.name.toLowerCase().endsWith(".pdf") ? "📄" : "🖼"}
+                      </div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{file.name}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                        {(file.size / 1024).toFixed(1)} KB · click to change
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>Drag & drop a file here</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                        or click to browse · PDF, JPG, PNG · max 10 MB
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Document Name *</label>
+                  <input className="form-input" placeholder="e.g. GST Certificate, Quality Report"
+                    value={name} onChange={e => setName(e.target.value)} />
+                </div>
+                <button className="btn btn-primary" onClick={handleUpload} disabled={uploading || !file}>
+                  {uploading ? "Uploading…" : "Upload Document"}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label className="form-label">URL *</label>
+                  <input className="form-input" type="url"
+                    placeholder="https://example.com/document.pdf"
+                    value={link} onChange={e => setLink(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Document Name *</label>
+                  <input className="form-input" placeholder="e.g. Supplier Website, ISO Certificate"
+                    value={name} onChange={e => setName(e.target.value)} />
+                </div>
+                <button className="btn btn-primary" onClick={handleAddLink}
+                  disabled={uploading || !link.trim() || !name.trim()}>
+                  {uploading ? "Saving…" : "Add Link"}
+                </button>
+              </>
+            )}
           </div>
         )}
 

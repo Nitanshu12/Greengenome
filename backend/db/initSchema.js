@@ -67,15 +67,18 @@ async function initSchema() {
       ) ENGINE=InnoDB
     `);
 
-    await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS vendor_code VARCHAR(50) DEFAULT NULL`);
-    await conn.query(`
-      UPDATE item_vendors iv
-        INNER JOIN vendors v ON iv.vendor_id = v.id
-        SET iv.vendor_code = v.vendor_code
-      WHERE iv.vendor_code IS NULL
-    `);
-    // Make vendor_id nullable so new inserts (without vendor_id) don't fail
-    await conn.query(`ALTER TABLE item_vendors MODIFY COLUMN vendor_id INT DEFAULT NULL`);
+    // Legacy migration — only relevant on old VPS installs that had a vendor_id column.
+    // On a fresh database these columns don't exist, so skip silently.
+    try { await conn.query(`ALTER TABLE item_vendors ADD COLUMN IF NOT EXISTS vendor_code_old VARCHAR(50) DEFAULT NULL`); } catch(e) {}
+    try {
+      await conn.query(`
+        UPDATE item_vendors iv
+          INNER JOIN vendors v ON iv.vendor_id = v.id
+          SET iv.vendor_code = v.vendor_code
+        WHERE iv.vendor_code IS NULL
+      `);
+    } catch(e) {}
+    try { await conn.query(`ALTER TABLE item_vendors MODIFY COLUMN vendor_id INT DEFAULT NULL`); } catch(e) {}
     // Add unique constraint on (item_code, vendor_code) — ignore if already exists
     try {
       await conn.query(`ALTER TABLE item_vendors ADD UNIQUE KEY uq_iv_code (item_code, vendor_code)`);
@@ -143,6 +146,31 @@ async function initSchema() {
       JOIN items i ON i.item_code = s.item_code
       WHERE s.status = 'active'
       GROUP BY s.item_code, i.name, i.unit
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS assembled_kits (
+        kit_id       INT AUTO_INCREMENT PRIMARY KEY,
+        kit_name     VARCHAR(200) NOT NULL,
+        qty_kits     INT NOT NULL DEFAULT 1,
+        assembled_by VARCHAR(100),
+        notes        TEXT,
+        status       ENUM('assembled','partial','cancelled') NOT NULL DEFAULT 'assembled',
+        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS kit_allocations (
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        kit_id        INT NOT NULL,
+        item_code     VARCHAR(50) NOT NULL,
+        batch_id      INT NOT NULL,
+        qty_allocated INT NOT NULL,
+        FOREIGN KEY (kit_id)    REFERENCES assembled_kits(kit_id)  ON DELETE CASCADE,
+        FOREIGN KEY (item_code) REFERENCES items(item_code)        ON DELETE RESTRICT,
+        FOREIGN KEY (batch_id)  REFERENCES stock_batches(batch_id) ON DELETE RESTRICT
+      ) ENGINE=InnoDB
     `);
 
     console.log("✅ MariaDB schema ready");

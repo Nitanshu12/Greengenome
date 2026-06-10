@@ -29,11 +29,6 @@ mongoose.connect(MONGO_URI)
     console.error("❌ MongoDB connection failed:", err.message);
     process.exit(1);
   });
-app.use(cors({
-  origin: "https://infoboard.greengenome.in",
-  credentials: true
-}));  
-
 app.use((req, res, next) => {
     if (req.url === '/' || req.url.endsWith('.html')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -88,9 +83,11 @@ const sessionSameSite =
     ? "none"
     : sessionSameSiteEnv === "strict"
       ? "strict"
-      : crossOriginFrontend && isProd
-        ? "none"
-        : "lax";
+      : sessionSameSiteEnv === "lax"
+        ? "lax"
+        : crossOriginFrontend && isProd
+          ? "none"
+          : "lax";
 
 const sessionCookieSecure =
   sessionSameSite === "none"
@@ -120,6 +117,7 @@ app.use((req, res, next) => {
   sessionMw(req, res, next);
 });
 
+
 // Health check (Render / load balancers)
 app.get("/health", (req, res) => {
   res.status(200).type("text").send("ok");
@@ -138,6 +136,7 @@ app.use("/api/vendors",      require("./routes/vendors"));
 app.use("/api/item-vendors", require("./routes/itemVendors"));
 app.use("/api/bom-disaster",   require("./routes/bomDisaster"));
 app.use("/api/stock-batches",  require("./routes/stockBatches"));
+app.use("/api/kit-assembly",   require("./routes/kitAssembly"));
 app.use("/api",                require("./routes/kits"));
 
 
