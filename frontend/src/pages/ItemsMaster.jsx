@@ -393,6 +393,7 @@ export default function ItemsMaster() {
   const [saving, setSaving] = useState(false);
   const [nextItemCode, setNextItemCode] = useState("");
   const [docsTarget, setDocsTarget] = useState(null);
+  const [itemDocs, setItemDocs] = useState({});
 
   const categories = useMemo(() =>
     [...new Set(allItems.map(i => i.category).filter(Boolean))].sort(),
@@ -416,6 +417,25 @@ export default function ItemsMaster() {
   }, [search, filterCat]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const start = (page - 1) * PER_PAGE;
+    const current = items.slice(start, start + PER_PAGE);
+    if (!current.length) return;
+    Promise.all(
+      current.map(item =>
+        api.getDocs(item.item_code)
+          .then(d => ({ code: item.item_code, docs: d.data }))
+          .catch(() => ({ code: item.item_code, docs: [] }))
+      )
+    ).then(results => {
+      setItemDocs(prev => {
+        const next = { ...prev };
+        results.forEach(({ code, docs }) => { next[code] = docs; });
+        return next;
+      });
+    });
+  }, [page, items]);
 
   const handleSave = async (form) => {
     if (!form.name.trim() || !form.category || !form.unit) {
@@ -612,6 +632,30 @@ export default function ItemsMaster() {
                           <button className="btn btn-ghost btn-sm" onClick={() => setDocsTarget(item)}>📄 Docs</button>
                           <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item)}>Delete</button>
                         </div>
+                        {itemDocs[item.item_code]?.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
+                            {itemDocs[item.item_code].map(doc => (
+                              <a key={doc.id} href={docHref(doc.document_url)} target="_blank" rel="noreferrer"
+                                style={{
+                                  fontSize: 11, color: "var(--primary)", textDecoration: "none",
+                                  display: "flex", alignItems: "center", gap: 3,
+                                  overflow: "hidden"
+                                }}>
+                                <span style={{ flexShrink: 0 }}>
+                                  {doc.document_url?.startsWith("http") && !doc.document_url?.includes("/uploads/")
+                                    ? "🔗"
+                                    : doc.document_url?.toLowerCase().endsWith(".pdf") ? "📄" : "🖼"}
+                                </span>
+                                <span style={{
+                                  overflow: "hidden", textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap", maxWidth: 130
+                                }} title={doc.document_name}>
+                                  {doc.document_name}
+                                </span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </td>
                     )}
                   </tr>
@@ -656,7 +700,13 @@ export default function ItemsMaster() {
         <DocsModal
           item={docsTarget}
           isAdmin={isAdmin}
-          onClose={() => setDocsTarget(null)}
+          onClose={() => {
+            const code = docsTarget.item_code;
+            setDocsTarget(null);
+            api.getDocs(code)
+              .then(d => setItemDocs(prev => ({ ...prev, [code]: d.data })))
+              .catch(() => {});
+          }}
           toast={toast}
         />
       )}
