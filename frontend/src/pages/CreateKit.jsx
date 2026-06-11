@@ -50,6 +50,125 @@ function SummaryChip({ count, total, type }) {
   );
 }
 
+function VendorSelectModal({ item, onClose, toast }) {
+  const [vendors, setVendors]   = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    api.getItemVendors()
+      .then(d => {
+        const entry = (d.data || []).find(iv => iv.item_code === item.item_code);
+        setVendors(entry ? entry.vendors : []);
+      })
+      .catch(e => toast(e.message, "error"))
+      .finally(() => setLoading(false));
+  }, [item.item_code]);
+
+  function handleGeneratePO() {
+    toast("PO generation will be available in the next update");
+  }
+
+  const shortfall = item.still_needed ?? item.shortfall_qty;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 520, width: "95%", maxHeight: "90vh", overflowY: "auto" }}
+        onClick={e => e.stopPropagation()}>
+
+        <div className="modal-title">Order Vendors</div>
+
+        {/* Item summary */}
+        <div style={{ marginBottom: 16, padding: "10px 14px", background: "var(--border)", borderRadius: 8, fontSize: 13 }}>
+          <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 11, color: "var(--muted)", marginBottom: 2 }}>
+            {item.item_code}
+          </div>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>{item.item_name}</div>
+          <div style={{ marginTop: 4, display: "flex", gap: 16, fontSize: 12, color: "var(--muted)", flexWrap: "wrap" }}>
+            {item.required_qty !== undefined && (
+              <span>Required: <strong style={{ color: "var(--fg)" }}>{Number(item.required_qty).toLocaleString("en-IN")}</strong></span>
+            )}
+            <span style={{ color: "#dc2626", fontWeight: 700 }}>
+              Shortfall: −{Number(shortfall).toLocaleString("en-IN")}
+            </span>
+          </div>
+        </div>
+
+        {/* Vendor cards */}
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 30 }}><div className="spinner" /></div>
+        ) : vendors.length === 0 ? (
+          <div style={{
+            background: "#fef9c3", border: "1px solid #fcd34d",
+            borderRadius: 8, padding: "14px 16px", fontSize: 13, color: "#92400e"
+          }}>
+            ⚠ No vendors are linked to this item. Go to the <strong>Item Vendors</strong> page to link vendors first.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            {vendors.map(v => {
+              const isSel = selected === v.vendor_code;
+              return (
+                <div key={v.vendor_code} onClick={() => setSelected(v.vendor_code)}
+                  style={{
+                    border: `2px solid ${isSel ? "var(--primary, #2563eb)" : "var(--border)"}`,
+                    borderRadius: 10, padding: "12px 16px", cursor: "pointer",
+                    background: isSel ? "#eff6ff" : "var(--bg-alt, #f8f9fa)",
+                    transition: "all 0.15s", display: "flex", alignItems: "flex-start", gap: 12,
+                  }}>
+                  {/* Radio dot */}
+                  <div style={{
+                    width: 18, height: 18, borderRadius: "50%", flexShrink: 0, marginTop: 2,
+                    border: `2px solid ${isSel ? "var(--primary, #2563eb)" : "var(--muted)"}`,
+                    background: isSel ? "var(--primary, #2563eb)" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {isSel && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
+                  </div>
+                  {/* Info */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                      <span style={{
+                        fontFamily: "monospace", fontWeight: 700, fontSize: 11,
+                        background: isSel ? "#dbeafe" : "var(--border)",
+                        color: isSel ? "#1d4ed8" : "var(--muted)",
+                        padding: "2px 7px", borderRadius: 4,
+                      }}>
+                        {v.vendor_code}
+                      </span>
+                      {v.is_preferred && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "#b45309", background: "#fef3c7", padding: "1px 6px", borderRadius: 10 }}>
+                          ★ Preferred
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: "var(--text)" }}>{v.business_name}</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3, display: "flex", gap: 14, flexWrap: "wrap" }}>
+                      {v.contact_person && <span>👤 {v.contact_person}</span>}
+                      {v.phone && <span>📞 {v.phone}</span>}
+                      {v.offer_price > 0 && <span>₹{Number(v.offer_price).toLocaleString("en-IN")}</span>}
+                      {v.lead_time && <span>⏱ {v.lead_time}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={!selected} onClick={handleGeneratePO}
+            style={{ opacity: selected ? 1 : 0.5 }}>
+            Generate PO →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CreateKit() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -70,6 +189,9 @@ export default function CreateKit() {
   const [kitDetail, setKitDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+
+  // Vendor select / PO modal
+  const [poTarget, setPoTarget] = useState(null);
 
   // Pending shortfalls panel (most recent partial kit)
   const [pendingKit, setPendingKit] = useState(null);
@@ -638,7 +760,7 @@ export default function CreateKit() {
                           {!row.now_coverable && (
                             <button
                               className="btn btn-ghost btn-sm"
-                              onClick={() => navigate(`/stock-batches?item_code=${encodeURIComponent(row.item_code)}`)}
+                              onClick={() => setPoTarget(row)}
                               style={{ fontSize: 11, padding: "2px 8px", whiteSpace: "nowrap" }}
                             >
                               Order
@@ -771,6 +893,9 @@ export default function CreateKit() {
     return (
       <>
         <KitDetailModal />
+        {poTarget && (
+          <VendorSelectModal item={poTarget} onClose={() => setPoTarget(null)} toast={toast} />
+        )}
 
         <div className="page-header">
           <div>
@@ -899,6 +1024,9 @@ export default function CreateKit() {
   return (
     <>
       <KitDetailModal />
+      {poTarget && (
+        <VendorSelectModal item={poTarget} onClose={() => setPoTarget(null)} toast={toast} />
+      )}
 
       <div className="page-header" style={{ flexWrap: "wrap", gap: 12 }}>
         <div>
@@ -1098,7 +1226,7 @@ export default function CreateKit() {
                         <td>
                           <button
                             className="btn btn-ghost btn-sm"
-                            onClick={() => navigate(`/stock-batches?item_code=${encodeURIComponent(row.item_code)}`)}
+                            onClick={() => setPoTarget(row)}
                           >
                             Order
                           </button>
