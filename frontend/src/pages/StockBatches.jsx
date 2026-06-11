@@ -1,9 +1,220 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { api } from "../api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/Toast";
 
 const UNITS = ["Piece", "Box", "Pack", "Strip", "Vial", "Bottle", "Roll", "Pair", "Set", "Kg", "Litre", "Metre"];
+
+const API_ROOT = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+function docHref(url) {
+  if (!url) return "#";
+  if (url.startsWith("/uploads/")) return `${API_ROOT}${url}`;
+  return url;
+}
+
+function BatchDocsModal({ batch, isAdmin, onClose, toast }) {
+  const [docs, setDocs]           = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [name, setName]           = useState("");
+  const [file, setFile]           = useState(null);
+  const [dragging, setDragging]   = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [mode, setMode]           = useState("file");
+  const [link, setLink]           = useState("");
+  const fileInputRef              = useRef(null);
+
+  useEffect(() => {
+    api.getBatchDocs(batch.batch_id)
+      .then(d => setDocs(d.data))
+      .catch(e => toast(e.message, "error"))
+      .finally(() => setLoading(false));
+  }, [batch.batch_id]);
+
+  function pickFile(f) {
+    if (!f) return;
+    const ext = f.name.split(".").pop().toLowerCase();
+    if (!["pdf", "jpg", "jpeg", "png"].includes(ext)) {
+      toast("Only PDF, JPG, PNG files are allowed", "error");
+      return;
+    }
+    setFile(f);
+    if (!name.trim()) setName(f.name.replace(/\.[^.]+$/, ""));
+  }
+
+  function handleDragOver(e) { e.preventDefault(); setDragging(true); }
+  function handleDragLeave() { setDragging(false); }
+  function handleDrop(e) {
+    e.preventDefault();
+    setDragging(false);
+    const f = e.dataTransfer.files[0];
+    if (f) pickFile(f);
+  }
+
+  async function handleUpload() {
+    if (!file)        return toast("Please select a file", "error");
+    if (!name.trim()) return toast("Document name is required", "error");
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("batch_id", batch.batch_id);
+      fd.append("document_name", name.trim());
+      await api.uploadBatchDoc(fd);
+      const d = await api.getBatchDocs(batch.batch_id);
+      setDocs(d.data);
+      setFile(null);
+      setName("");
+      toast("Document uploaded");
+    } catch (e) { toast(e.message, "error"); }
+    finally { setUploading(false); }
+  }
+
+  async function handleAddLink() {
+    if (!link.trim()) return toast("URL is required", "error");
+    if (!name.trim()) return toast("Document name is required", "error");
+    try { new URL(link.trim()); } catch { return toast("Please enter a valid URL", "error"); }
+    setUploading(true);
+    try {
+      await api.addBatchDoc({ batch_id: batch.batch_id, document_name: name.trim(), document_url: link.trim() });
+      const d = await api.getBatchDocs(batch.batch_id);
+      setDocs(d.data);
+      setLink("");
+      setName("");
+      toast("Link added");
+    } catch (e) { toast(e.message, "error"); }
+    finally { setUploading(false); }
+  }
+
+  async function handleDelete(id) {
+    if (!confirm("Delete this document?")) return;
+    try {
+      await api.deleteBatchDoc(id);
+      setDocs(d => d.filter(x => x.id !== id));
+      toast("Document deleted");
+    } catch (e) { toast(e.message, "error"); }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 520, width: "95%", maxHeight: "90vh", overflowY: "auto" }}
+        onClick={e => e.stopPropagation()}>
+        <div className="modal-title">
+          Documents — Batch #{batch.batch_id} · {batch.item_name}
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 30 }}><div className="spinner" /></div>
+        ) : docs.length === 0 ? (
+          <div style={{ color: "var(--muted)", padding: "12px 0", fontSize: 14 }}>No documents yet.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            {docs.map(d => (
+              <div key={d.id} style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: "var(--bg-alt, #f8f9fa)", borderRadius: 8, padding: "10px 14px"
+              }}>
+                <a href={docHref(d.document_url)} target="_blank" rel="noreferrer"
+                  style={{ fontWeight: 500, color: "var(--primary)", textDecoration: "none", fontSize: 14 }}>
+                  {d.document_url?.startsWith("http") && !d.document_url?.includes("/uploads/")
+                    ? "🔗"
+                    : d.document_url?.toLowerCase().endsWith(".pdf") ? "📄" : "🖼"} {d.document_name}
+                </a>
+                {isAdmin && (
+                  <button className="btn btn-danger btn-sm" onClick={() => handleDelete(d.id)}>Delete</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {isAdmin && (
+          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+            <div style={{ display: "flex", gap: 0, marginBottom: 16, borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)" }}>
+              {[["file", "📂 Upload File"], ["link", "🔗 Add Link"]].map(([key, label]) => (
+                <button key={key} onClick={() => { setMode(key); setName(""); setFile(null); setLink(""); }}
+                  style={{
+                    flex: 1, padding: "8px 0", border: "none", cursor: "pointer", fontWeight: 600,
+                    fontSize: 13, transition: "all 0.15s",
+                    background: mode === key ? "var(--primary, #2563eb)" : "#f9fafb",
+                    color: mode === key ? "#fff" : "var(--muted)"
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {mode === "file" ? (
+              <>
+                <div
+                  onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    border: `2px dashed ${dragging ? "#2563eb" : "var(--border, #d1d5db)"}`,
+                    borderRadius: 10, padding: "24px 16px", textAlign: "center",
+                    cursor: "pointer", background: dragging ? "#eff6ff" : "#fafafa",
+                    transition: "all 0.15s", marginBottom: 12
+                  }}
+                >
+                  <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png"
+                    style={{ display: "none" }} onChange={e => pickFile(e.target.files[0])} />
+                  {file ? (
+                    <div>
+                      <div style={{ fontSize: 28, marginBottom: 6 }}>
+                        {file.name.toLowerCase().endsWith(".pdf") ? "📄" : "🖼"}
+                      </div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{file.name}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                        {(file.size / 1024).toFixed(1)} KB · click to change
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize: 32, marginBottom: 8 }}>📂</div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>Drag & drop a file here</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                        or click to browse · PDF, JPG, PNG · max 10 MB
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Document Name *</label>
+                  <input className="form-input" placeholder="e.g. Invoice, Delivery Challan, COA"
+                    value={name} onChange={e => setName(e.target.value)} />
+                </div>
+                <button className="btn btn-primary" onClick={handleUpload} disabled={uploading || !file}>
+                  {uploading ? "Uploading…" : "Upload Document"}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label className="form-label">URL *</label>
+                  <input className="form-input" type="url"
+                    placeholder="https://example.com/invoice.pdf"
+                    value={link} onChange={e => setLink(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Document Name *</label>
+                  <input className="form-input" placeholder="e.g. Invoice, COA, Delivery Challan"
+                    value={name} onChange={e => setName(e.target.value)} />
+                </div>
+                <button className="btn btn-primary" onClick={handleAddLink}
+                  disabled={uploading || !link.trim() || !name.trim()}>
+                  {uploading ? "Saving…" : "Add Link"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        <div style={{ marginTop: 16 }}>
+          <button className="btn btn-ghost" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 const STATUSES = ["active", "expired", "quarantined", "returned"];
 
 const STATUS_STYLE = {
@@ -248,6 +459,8 @@ export default function StockBatches() {
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [issueTarget, setIssueTarget] = useState(null);
+  const [docsTarget, setDocsTarget] = useState(null);
+  const [batchDocs, setBatchDocs] = useState({});
 
   const [summary, setSummary] = useState([]);
 
@@ -271,6 +484,23 @@ export default function StockBatches() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadSummary(); }, [loadSummary]);
+
+  useEffect(() => {
+    if (!batches.length) return;
+    Promise.all(
+      batches.map(b =>
+        api.getBatchDocs(b.batch_id)
+          .then(d => ({ id: b.batch_id, docs: d.data }))
+          .catch(() => ({ id: b.batch_id, docs: [] }))
+      )
+    ).then(results => {
+      setBatchDocs(prev => {
+        const next = { ...prev };
+        results.forEach(({ id, docs }) => { next[id] = docs; });
+        return next;
+      });
+    });
+  }, [batches]);
 
   useEffect(() => {
     api.getItems().then(d => setItems(d.data)).catch(() => { });
@@ -613,10 +843,36 @@ export default function StockBatches() {
                               <button className="btn btn-ghost btn-sm" onClick={() => openEdit(b)}>
                                 Edit
                               </button>
+                              <button className="btn btn-ghost btn-sm" onClick={() => setDocsTarget(b)}>
+                                📄 Docs
+                              </button>
                               <button className="btn btn-danger btn-sm" onClick={() => handleDelete(b)}>
                                 Delete
                               </button>
                             </div>
+                            {batchDocs[b.batch_id]?.length > 0 && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
+                                {batchDocs[b.batch_id].map(doc => (
+                                  <a key={doc.id} href={docHref(doc.document_url)} target="_blank" rel="noreferrer"
+                                    style={{
+                                      fontSize: 11, color: "var(--primary)", textDecoration: "none",
+                                      display: "flex", alignItems: "center", gap: 3, overflow: "hidden"
+                                    }}>
+                                    <span style={{ flexShrink: 0 }}>
+                                      {doc.document_url?.startsWith("http") && !doc.document_url?.includes("/uploads/")
+                                        ? "🔗"
+                                        : doc.document_url?.toLowerCase().endsWith(".pdf") ? "📄" : "🖼"}
+                                    </span>
+                                    <span style={{
+                                      overflow: "hidden", textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap", maxWidth: 120
+                                    }} title={doc.document_name}>
+                                      {doc.document_name}
+                                    </span>
+                                  </a>
+                                ))}
+                              </div>
+                            )}
                           </td>
                         )}
                       </tr>
@@ -659,6 +915,21 @@ export default function StockBatches() {
           onSave={handleIssue}
           onClose={() => setIssueTarget(null)}
           saving={saving}
+        />
+      )}
+
+      {docsTarget && (
+        <BatchDocsModal
+          batch={docsTarget}
+          isAdmin={isAdmin}
+          onClose={() => {
+            const id = docsTarget.batch_id;
+            setDocsTarget(null);
+            api.getBatchDocs(id)
+              .then(d => setBatchDocs(prev => ({ ...prev, [id]: d.data })))
+              .catch(() => {});
+          }}
+          toast={toast}
         />
       )}
     </>

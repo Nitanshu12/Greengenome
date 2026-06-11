@@ -82,6 +82,11 @@ export const api = {
   uploadDoc:          (formData)    => request("POST",   "/item-documents/upload", formData, true),
   deleteDoc:          (id)          => request("DELETE", `/item-documents/${id}`),
 
+  getBatchDocs:       (batch_id)    => request("GET",    `/batch-documents/${batch_id}`),
+  addBatchDoc:        (body)        => request("POST",   "/batch-documents", body),
+  uploadBatchDoc:     (formData)    => request("POST",   "/batch-documents/upload", formData, true),
+  deleteBatchDoc:     (id)          => request("DELETE", `/batch-documents/${id}`),
+
   // BOM Disaster
   getBom:       (params = "") => request("GET",    `/bom-disaster${params ? "?" + params : ""}`),
   createBom:    (body)        => request("POST",   "/bom-disaster", body),
