@@ -50,6 +50,207 @@ function SummaryChip({ count, total, type }) {
   );
 }
 
+function CombinedOrderModal({ shortfalls, onClose, toast }) {
+  const [loading, setLoading]         = useState(true);
+  const [vendorGroups, setVendorGroups] = useState([]);
+  const [unlinked, setUnlinked]       = useState([]);
+  const [selected, setSelected]       = useState(null);
+  const [removed, setRemoved]         = useState(new Set());
+
+  useEffect(() => {
+    api.getItemVendors()
+      .then(d => {
+        const ivMap = {};
+        for (const entry of (d.data || [])) ivMap[entry.item_code] = entry.vendors || [];
+
+        const vMap = {};
+        const noVendor = [];
+        for (const sf of shortfalls) {
+          const vendors = ivMap[sf.item_code] || [];
+          if (vendors.length === 0) { noVendor.push(sf); continue; }
+          for (const v of vendors) {
+            if (!vMap[v.vendor_code]) vMap[v.vendor_code] = { vendor: v, items: [] };
+            vMap[v.vendor_code].items.push(sf);
+          }
+        }
+
+        setVendorGroups(Object.values(vMap).sort((a, b) => b.items.length - a.items.length));
+        setUnlinked(noVendor);
+      })
+      .catch(e => toast(e.message, "error"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  function selectVendor(vendor_code) {
+    setSelected(vendor_code);
+    setRemoved(new Set());
+  }
+
+  function toggleRemove(item_code) {
+    setRemoved(prev => {
+      const next = new Set(prev);
+      next.has(item_code) ? next.delete(item_code) : next.add(item_code);
+      return next;
+    });
+  }
+
+  const selectedGroup  = vendorGroups.find(g => g.vendor.vendor_code === selected);
+  const activeItems    = selectedGroup ? selectedGroup.items.filter(i => !removed.has(i.item_code)) : [];
+  const canGenerate    = selected && activeItems.length > 0;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 580, width: "95%", maxHeight: "90vh", overflowY: "auto" }}
+        onClick={e => e.stopPropagation()}>
+
+        <div className="modal-title">Combined Order — Group by Vendor</div>
+        <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 16 }}>
+          {shortfalls.length} shortfall item{shortfalls.length !== 1 ? "s" : ""} · select a vendor to raise one combined PO
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 30 }}><div className="spinner" /></div>
+        ) : vendorGroups.length === 0 ? (
+          <div style={{ background: "#fef9c3", border: "1px solid #fcd34d", borderRadius: 8, padding: "14px 16px", fontSize: 13, color: "#92400e" }}>
+            ⚠ None of the shortfall items have vendors linked. Go to the <strong>Item Vendors</strong> page to link vendors first.
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+              {vendorGroups.map(({ vendor: v, items }) => {
+                const isSel        = selected === v.vendor_code;
+                const removedCount = isSel ? items.filter(i => removed.has(i.item_code)).length : 0;
+                const activeCount  = items.length - removedCount;
+
+                return (
+                  <div key={v.vendor_code} style={{
+                    border: `2px solid ${isSel ? "var(--primary, #2563eb)" : "var(--border)"}`,
+                    borderRadius: 10, background: isSel ? "#eff6ff" : "var(--bg-alt, #f8f9fa)",
+                    transition: "all 0.15s", overflow: "hidden",
+                  }}>
+                    {/* Vendor header */}
+                    <div onClick={() => selectVendor(v.vendor_code)}
+                      style={{ padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer" }}>
+                      <div style={{
+                        width: 18, height: 18, borderRadius: "50%", flexShrink: 0, marginTop: 2,
+                        border: `2px solid ${isSel ? "var(--primary, #2563eb)" : "var(--muted)"}`,
+                        background: isSel ? "var(--primary, #2563eb)" : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {isSel && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
+                          <span style={{
+                            fontFamily: "monospace", fontWeight: 700, fontSize: 11,
+                            background: isSel ? "#dbeafe" : "var(--border)",
+                            color: isSel ? "#1d4ed8" : "var(--muted)",
+                            padding: "2px 7px", borderRadius: 4,
+                          }}>{v.vendor_code}</span>
+                          {v.is_preferred && (
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "#b45309", background: "#fef3c7", padding: "1px 6px", borderRadius: 10 }}>★ Preferred</span>
+                          )}
+                          <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: "auto" }}>
+                            {isSel && removedCount > 0
+                              ? `${activeCount} item${activeCount !== 1 ? "s" : ""} · ${removedCount} removed`
+                              : `${items.length} shortfall item${items.length !== 1 ? "s" : ""}`}
+                          </span>
+                        </div>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{v.business_name}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3, display: "flex", gap: 14, flexWrap: "wrap" }}>
+                          {v.contact_person && <span>👤 {v.contact_person}</span>}
+                          {v.phone && <span>📞 {v.phone}</span>}
+                          {v.offer_price > 0 && <span>₹{Number(v.offer_price).toLocaleString("en-IN")}</span>}
+                          {v.lead_time && <span>⏱ {v.lead_time}</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Item list — only when this vendor is selected */}
+                    {isSel && (
+                      <div style={{ borderTop: "1px solid var(--border)", background: "#fff" }}>
+                        {items.map(item => {
+                          const isRemoved = removed.has(item.item_code);
+                          const qty = item.shortfall_qty ?? item.still_needed;
+                          return (
+                            <div key={item.item_code} style={{
+                              display: "flex", alignItems: "center", gap: 10,
+                              padding: "8px 16px",
+                              borderBottom: "1px solid var(--border)",
+                              opacity: isRemoved ? 0.5 : 1,
+                              transition: "opacity 0.15s",
+                            }}>
+                              <span style={{
+                                fontFamily: "monospace", fontSize: 11, fontWeight: 600, flexShrink: 0,
+                                background: isRemoved ? "var(--border)" : "#dbeafe",
+                                color: isRemoved ? "var(--muted)" : "#1d4ed8",
+                                padding: "2px 6px", borderRadius: 4,
+                              }}>{item.item_code}</span>
+                              <span style={{
+                                flex: 1, fontSize: 13, fontWeight: 500,
+                                textDecoration: isRemoved ? "line-through" : "none",
+                                color: isRemoved ? "var(--muted)" : "var(--text)",
+                              }}>{item.item_name}</span>
+                              <span style={{
+                                fontSize: 12, fontWeight: 700, flexShrink: 0,
+                                color: isRemoved ? "var(--muted)" : "#dc2626",
+                              }}>
+                                −{Number(qty).toLocaleString("en-IN")}
+                              </span>
+                              <button
+                                onClick={e => { e.stopPropagation(); toggleRemove(item.item_code); }}
+                                title={isRemoved ? "Restore to PO" : "Remove from this PO"}
+                                style={{
+                                  background: "none", border: "none", cursor: "pointer",
+                                  fontSize: 13, padding: "2px 6px", borderRadius: 4, flexShrink: 0,
+                                  color: isRemoved ? "#16a34a" : "#dc2626", fontWeight: 700,
+                                }}>
+                                {isRemoved ? "↩" : "✕"}
+                              </button>
+                            </div>
+                          );
+                        })}
+                        {activeCount === 0 && (
+                          <div style={{ padding: "10px 16px", fontSize: 12, color: "#b45309", background: "#fef9c3", textAlign: "center" }}>
+                            All items removed — restore at least one to generate a PO
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {unlinked.length > 0 && (
+              <div style={{ background: "#fef9c3", border: "1px solid #fcd34d", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#92400e", marginBottom: 16 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                  ⚠ {unlinked.length} item{unlinked.length !== 1 ? "s" : ""} with no vendor linked — order separately:
+                </div>
+                {unlinked.map(i => (
+                  <div key={i.item_code} style={{ display: "flex", gap: 8, marginTop: 3, alignItems: "center" }}>
+                    <span style={{ fontFamily: "monospace", fontSize: 11, background: "#fde68a", padding: "1px 5px", borderRadius: 3 }}>{i.item_code}</span>
+                    <span>{i.item_name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={!canGenerate}
+            onClick={() => toast("PO generation will be available in the next update")}
+            style={{ opacity: canGenerate ? 1 : 0.5 }}>
+            Generate Combined PO →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VendorSelectModal({ item, onClose, toast }) {
   const [vendors, setVendors]   = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -192,6 +393,7 @@ export default function CreateKit() {
 
   // Vendor select / PO modal
   const [poTarget, setPoTarget] = useState(null);
+  const [combinedPOShortfalls, setCombinedPOShortfalls] = useState(null);
 
   // Pending shortfalls panel (most recent partial kit)
   const [pendingKit, setPendingKit] = useState(null);
@@ -680,6 +882,15 @@ export default function CreateKit() {
                   <span style={{ color: "#15803d" }}>✓ {nowCoverable.length} now in stock — reorder kit to allocate</span>
                 )}
               </span>
+              {stillShort.length > 0 && (
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => setCombinedPOShortfalls(stillShort)}
+                  style={{ fontSize: 11, padding: "2px 10px", color: "#dc2626", borderColor: "#fca5a5", whiteSpace: "nowrap" }}
+                >
+                  Combined Order →
+                </button>
+              )}
               <button
                 className="btn btn-ghost"
                 onClick={() => handleViewKit(pendingKit)}
@@ -896,6 +1107,9 @@ export default function CreateKit() {
         {poTarget && (
           <VendorSelectModal item={poTarget} onClose={() => setPoTarget(null)} toast={toast} />
         )}
+        {combinedPOShortfalls && (
+          <CombinedOrderModal shortfalls={combinedPOShortfalls} onClose={() => setCombinedPOShortfalls(null)} toast={toast} />
+        )}
 
         <div className="page-header">
           <div>
@@ -1026,6 +1240,9 @@ export default function CreateKit() {
       <KitDetailModal />
       {poTarget && (
         <VendorSelectModal item={poTarget} onClose={() => setPoTarget(null)} toast={toast} />
+      )}
+      {combinedPOShortfalls && (
+        <CombinedOrderModal shortfalls={combinedPOShortfalls} onClose={() => setCombinedPOShortfalls(null)} toast={toast} />
       )}
 
       <div className="page-header" style={{ flexWrap: "wrap", gap: 12 }}>
@@ -1165,6 +1382,13 @@ export default function CreateKit() {
             }}>
               {result.shortfalls.length} items need ordering
             </span>
+            <button
+              className="btn btn-ghost"
+              style={{ fontSize: 12, padding: "4px 12px", marginRight: 4, color: "#dc2626", borderColor: "#fca5a5" }}
+              onClick={e => { e.stopPropagation(); setCombinedPOShortfalls(result.shortfalls); }}
+            >
+              Combined Order →
+            </button>
             <button
               className="btn btn-primary"
               style={{ background: "#dc2626", borderColor: "#dc2626", fontSize: 12, padding: "4px 12px", marginRight: 8 }}
