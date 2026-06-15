@@ -99,7 +99,7 @@ export default function POStatus() {
                   <tr key={po.id}>
                     <td>
                       <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 13 }}>
-                        {po.po_number || `#${po.id}`}
+                        {po.po_number || "—"}
                       </span>
                     </td>
                     <td>

@@ -201,6 +201,17 @@ async function initSchema() {
       ) ENGINE=InnoDB
     `);
 
+    // Link stock_batches to purchase_orders (safe — runs after both tables exist)
+    await conn.query(`ALTER TABLE stock_batches ADD COLUMN IF NOT EXISTS po_id INT DEFAULT NULL`);
+    try {
+      await conn.query(`
+        ALTER TABLE stock_batches
+          ADD CONSTRAINT fk_sb_po FOREIGN KEY (po_id) REFERENCES purchase_orders(id) ON DELETE SET NULL
+      `);
+    } catch(e) {
+      if (!e.message?.includes("Duplicate") && !e.message?.includes("already exists")) throw e;
+    }
+
     await conn.query(`
       CREATE TABLE IF NOT EXISTS assembled_kits (
         kit_id       INT AUTO_INCREMENT PRIMARY KEY,
@@ -224,6 +235,17 @@ async function initSchema() {
         FOREIGN KEY (item_code) REFERENCES items(item_code)        ON DELETE RESTRICT,
         FOREIGN KEY (batch_id)  REFERENCES stock_batches(batch_id) ON DELETE RESTRICT
       ) ENGINE=InnoDB
+    `);
+
+    // Reset old-format PO numbers (e.g. "3/26") to NULL, then regenerate in new format
+    await conn.query(`
+      UPDATE purchase_orders SET po_number = NULL
+      WHERE po_number REGEXP '^[0-9]+/[0-9]{2}$'
+    `);
+    await conn.query(`
+      UPDATE purchase_orders
+      SET po_number = CONCAT(YEAR(created_at), '/', LPAD(MONTH(created_at), 2, '0'), '/', id)
+      WHERE po_number IS NULL
     `);
 
     console.log("✅ MariaDB schema ready");

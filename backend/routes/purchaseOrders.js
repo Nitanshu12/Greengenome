@@ -277,6 +277,46 @@ router.get("/", requireLogin, async (req, res) => {
   }
 });
 
+// GET /api/purchase-orders/active-items  — map of item_code → PO info for all draft/sent POs
+router.get("/active-items", requireLogin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT poi.item_code, po.id AS po_id, po.po_number, po.status
+      FROM purchase_order_items poi
+      JOIN purchase_orders po ON po.id = poi.po_id
+      WHERE po.status IN ('draft', 'sent')
+      ORDER BY po.id DESC
+    `);
+    const map = {};
+    for (const r of rows) {
+      if (!map[r.item_code]) {
+        map[r.item_code] = { po_id: r.po_id, po_number: r.po_number, status: r.status };
+      }
+    }
+    res.json({ data: map });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/purchase-orders/for-item/:item_code  — active POs containing a specific item
+router.get("/for-item/:item_code", requireLogin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT po.id, po.po_number, po.vendor_code, v.business_name, po.status,
+             poi.quantity AS ordered_qty, poi.unit
+      FROM purchase_order_items poi
+      JOIN purchase_orders po ON po.id = poi.po_id
+      LEFT JOIN vendors v ON v.vendor_code = po.vendor_code
+      WHERE poi.item_code = ? AND po.status IN ('draft', 'sent')
+      ORDER BY po.id DESC
+    `, [req.params.item_code]);
+    res.json({ data: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/purchase-orders/:id  — single PO with items
 router.get("/:id", requireLogin, async (req, res) => {
   try {

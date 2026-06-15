@@ -62,10 +62,13 @@ router.get("/", requireLogin, async (req, res) => {
            sb.storage_location,
            sb.status,
            sb.remarks,
+           sb.po_id,
+           po.po_number        AS linked_po_number,
            sb.created_at
          FROM stock_batches sb
          JOIN items i ON i.item_code = sb.item_code
          LEFT JOIN vendors v ON v.vendor_code = sb.vendor_code
+         LEFT JOIN purchase_orders po ON po.id = sb.po_id
          ${where}
          ORDER BY sb.item_code ASC, sb.expiry_date ASC`,
         params
@@ -92,6 +95,7 @@ router.post("/", ...adminOnly, async (req, res) => {
       storage_location,
       status = "active",
       remarks,
+      po_id,
     } = req.body;
 
     if (!item_code || !qty_received || !unit) {
@@ -103,13 +107,15 @@ router.post("/", ...adminOnly, async (req, res) => {
       return res.status(400).json({ error: "qty_received must be greater than 0" });
     }
 
+    const parsedPoId = po_id ? parseInt(po_id, 10) : null;
+
     const conn = await pool.getConnection();
     try {
       const [result] = await conn.query(
         `INSERT INTO stock_batches
            (supplier_batch_no, item_code, vendor_code, mfg_date, expiry_date,
-            qty_received, unit, storage_location, status, remarks)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            qty_received, unit, storage_location, status, remarks, po_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           supplier_batch_no || null,
           item_code,
@@ -121,8 +127,28 @@ router.post("/", ...adminOnly, async (req, res) => {
           storage_location || null,
           status,
           remarks || null,
+          parsedPoId,
         ]
       );
+
+      // Auto-mark PO as received if all its items now have a linked batch
+      if (parsedPoId) {
+        const [poItems]     = await conn.query(
+          "SELECT item_code FROM purchase_order_items WHERE po_id = ?", [parsedPoId]
+        );
+        const [linkedItems] = await conn.query(
+          "SELECT DISTINCT item_code FROM stock_batches WHERE po_id = ?", [parsedPoId]
+        );
+        const linkedSet  = new Set(linkedItems.map(r => r.item_code));
+        const allArrived = poItems.length > 0 && poItems.every(r => linkedSet.has(r.item_code));
+        if (allArrived) {
+          await conn.query(
+            "UPDATE purchase_orders SET status = 'received' WHERE id = ? AND status IN ('draft','sent')",
+            [parsedPoId]
+          );
+        }
+      }
+
       res.status(201).json({ msg: "Stock batch created", batch_id: result.insertId });
     } finally {
       conn.release();

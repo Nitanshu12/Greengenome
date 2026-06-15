@@ -232,7 +232,9 @@ const EMPTY_BATCH_FORM = {
 
 // ── Goods Receipt (Add) Modal ─────────────────────────────────────
 function BatchFormModal({ initial, items, vendors, itemVendors, onSave, onClose, saving }) {
-  const [form, setForm] = useState(() => initial ?? { ...EMPTY_BATCH_FORM });
+  const [form, setForm]       = useState(() => initial ?? { ...EMPTY_BATCH_FORM });
+  const [linkPoId, setLinkPoId] = useState("");
+  const [activePOs, setActivePOs] = useState([]);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const selectedItem = items.find(i => i.item_code === form.item_code);
@@ -270,6 +272,14 @@ function BatchFormModal({ initial, items, vendors, itemVendors, onSave, onClose,
       }
     }
   }, [form.item_code, selectedItem, initial, itemVendors]);
+
+  // Fetch active POs for selected item (only when adding, not editing)
+  useEffect(() => {
+    if (initial || !form.item_code) { setActivePOs([]); setLinkPoId(""); return; }
+    api.getPOsForItem(form.item_code)
+      .then(d => setActivePOs(d.data || []))
+      .catch(() => setActivePOs([]));
+  }, [form.item_code, initial]);
 
   // Filter items to show only active items (or the current item when editing)
   const activeItems = useMemo(() => {
@@ -382,9 +392,27 @@ function BatchFormModal({ initial, items, vendors, itemVendors, onSave, onClose,
             style={{ resize: "vertical" }} />
         </div>
 
+        {/* Link to PO — only shown when adding a new batch and active POs exist for the item */}
+        {!initial && activePOs.length > 0 && (
+          <div className="form-group">
+            <label className="form-label">Link to Purchase Order (optional)</label>
+            <select className="form-select" value={linkPoId} onChange={e => setLinkPoId(e.target.value)}>
+              <option value="">— No PO link —</option>
+              {activePOs.map(po => (
+                <option key={po.id} value={po.id}>
+                  PO {po.po_number} · {po.business_name || po.vendor_code} · {po.ordered_qty} {po.unit} ordered
+                </option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+              Linking marks this batch as received against the PO. PO auto-marks received when all its items have a linked batch.
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-2" style={{ marginTop: 4 }}>
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary ml-auto" onClick={() => onSave(form)} disabled={saving}>
+          <button className="btn btn-primary ml-auto" onClick={() => onSave({ ...form, po_id: linkPoId || null })} disabled={saving}>
             {saving ? "Saving…" : initial ? "Save Changes" : "Record Receipt"}
           </button>
         </div>
@@ -749,17 +777,18 @@ export default function StockBatches() {
                 <thead>
                   <tr>
                     <th style={{ width: "7%" }}>Item</th>
-                    <th style={{ width: "19%" }}>Item Name</th>
-                    <th style={{ width: "8%" }}>Batch No</th>
+                    <th style={{ width: "17%" }}>Item Name</th>
+                    <th style={{ width: "7%" }}>Batch No</th>
                     <th style={{ width: "7%" }}>Vendor</th>
-                    <th style={{ width: "7%" }}>Mfg Date</th>
-                    <th style={{ width: "8%" }}>Expiry Date</th>
+                    <th style={{ width: "6%" }}>Mfg Date</th>
+                    <th style={{ width: "7%" }}>Expiry Date</th>
                     <th style={{ width: "5%", textAlign: "right" }}>Received</th>
                     <th style={{ width: "5%", textAlign: "right" }}>Issued</th>
                     <th style={{ width: "5%", textAlign: "right" }}>In Hand</th>
                     <th style={{ width: "6%" }}>Location</th>
-                    <th style={{ width: "7%" }}>Status</th>
-                    {isAdmin && <th style={{ width: "16%", minWidth: 165 }}>Actions</th>}
+                    <th style={{ width: "6%" }}>Status</th>
+                    <th style={{ width: "7%" }}>PO Link</th>
+                    {isAdmin && <th style={{ width: "15%", minWidth: 165 }}>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -830,6 +859,20 @@ export default function StockBatches() {
                           }}>
                             {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
                           </span>
+                        </td>
+                        <td>
+                          {b.linked_po_number ? (
+                            <span style={{
+                              fontFamily: "monospace", fontSize: 11, fontWeight: 700,
+                              background: "#dbeafe", color: "#1d4ed8",
+                              padding: "2px 7px", borderRadius: 4,
+                              whiteSpace: "nowrap",
+                            }}>
+                              {b.linked_po_number}
+                            </span>
+                          ) : (
+                            <span style={{ color: "var(--muted)", fontSize: 12 }}>NULL</span>
+                          )}
                         </td>
                         {isAdmin && (
                           <td style={{ minWidth: 165 }}>

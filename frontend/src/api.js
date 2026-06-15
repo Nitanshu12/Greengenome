@@ -108,11 +108,13 @@ export const api = {
   cancelKit:     (id)   => request("POST", `/kit-assembly/${id}/cancel`),
 
   // Purchase Orders
-  createPO:       (body)         => request("POST",  "/purchase-orders", body),
-  getPOs:         ()             => request("GET",   "/purchase-orders"),
-  getPODetails:   (id)           => request("GET",   `/purchase-orders/${id}`),
-  downloadPO:     (id)           => request("GET",   `/purchase-orders/${id}/download`),
-  updatePOStatus: (id, status)   => request("PATCH", `/purchase-orders/${id}/status`, { status }),
+  createPO:         (body)       => request("POST",  "/purchase-orders", body),
+  getPOs:           ()           => request("GET",   "/purchase-orders"),
+  getPODetails:     (id)         => request("GET",   `/purchase-orders/${id}`),
+  downloadPO:       (id)         => request("GET",   `/purchase-orders/${id}/download`),
+  updatePOStatus:   (id, status) => request("PATCH", `/purchase-orders/${id}/status`, { status }),
+  getActivePOItems: ()           => request("GET",   "/purchase-orders/active-items"),
+  getPOsForItem:    (item_code)  => request("GET",   `/purchase-orders/for-item/${encodeURIComponent(item_code)}`),
 
   // Admin — users
   getUsers:       ()      => request("GET",   "/admin/users"),

@@ -57,12 +57,13 @@ function CombinedOrderModal({ shortfalls, onClose, toast }) {
   const [selected, setSelected]         = useState(null);
   const [removed, setRemoved]           = useState(new Set());
   const [generating, setGenerating]     = useState(false);
+  const [poItemsMap, setPoItemsMap]     = useState({});
 
   useEffect(() => {
-    api.getItemVendors()
-      .then(d => {
+    Promise.all([api.getItemVendors(), api.getActivePOItems()])
+      .then(([ivData, poData]) => {
         const ivMap = {};
-        for (const entry of (d.data || [])) ivMap[entry.item_code] = entry.vendors || [];
+        for (const entry of (ivData.data || [])) ivMap[entry.item_code] = entry.vendors || [];
 
         const vMap = {};
         const noVendor = [];
@@ -77,6 +78,7 @@ function CombinedOrderModal({ shortfalls, onClose, toast }) {
 
         setVendorGroups(Object.values(vMap).sort((a, b) => b.items.length - a.items.length));
         setUnlinked(noVendor);
+        setPoItemsMap(poData.data || {});
       })
       .catch(e => toast(e.message, "error"))
       .finally(() => setLoading(false));
@@ -96,7 +98,9 @@ function CombinedOrderModal({ shortfalls, onClose, toast }) {
   }
 
   const selectedGroup  = vendorGroups.find(g => g.vendor.vendor_code === selected);
-  const activeItems    = selectedGroup ? selectedGroup.items.filter(i => !removed.has(i.item_code)) : [];
+  const activeItems    = selectedGroup
+    ? selectedGroup.items.filter(i => !removed.has(i.item_code) && !poItemsMap[i.item_code])
+    : [];
   const canGenerate    = selected && activeItems.length > 0;
 
   return (
@@ -120,8 +124,9 @@ function CombinedOrderModal({ shortfalls, onClose, toast }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
               {vendorGroups.map(({ vendor: v, items }) => {
                 const isSel        = selected === v.vendor_code;
-                const removedCount = isSel ? items.filter(i => removed.has(i.item_code)).length : 0;
-                const activeCount  = items.length - removedCount;
+                const lockedCount  = items.filter(i => poItemsMap[i.item_code]).length;
+                const removedCount = isSel ? items.filter(i => !poItemsMap[i.item_code] && removed.has(i.item_code)).length : 0;
+                const activeCount  = items.length - lockedCount - removedCount;
 
                 return (
                   <div key={v.vendor_code} style={{
@@ -152,8 +157,12 @@ function CombinedOrderModal({ shortfalls, onClose, toast }) {
                             <span style={{ fontSize: 10, fontWeight: 700, color: "#b45309", background: "#fef3c7", padding: "1px 6px", borderRadius: 10 }}>★ Preferred</span>
                           )}
                           <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: "auto" }}>
-                            {isSel && removedCount > 0
-                              ? `${activeCount} item${activeCount !== 1 ? "s" : ""} · ${removedCount} removed`
+                            {isSel
+                              ? [
+                                  `${activeCount} active`,
+                                  lockedCount  > 0 && `${lockedCount} PO exists`,
+                                  removedCount > 0 && `${removedCount} removed`,
+                                ].filter(Boolean).join(" · ")
                               : `${items.length} shortfall item${items.length !== 1 ? "s" : ""}`}
                           </span>
                         </div>
@@ -171,49 +180,65 @@ function CombinedOrderModal({ shortfalls, onClose, toast }) {
                     {isSel && (
                       <div style={{ borderTop: "1px solid var(--border)", background: "#fff" }}>
                         {items.map(item => {
-                          const isRemoved = removed.has(item.item_code);
-                          const qty = item.shortfall_qty ?? item.still_needed;
+                          const poInfo    = poItemsMap[item.item_code];
+                          const isLocked  = !!poInfo;
+                          const isRemoved = !isLocked && removed.has(item.item_code);
+                          const qty       = item.shortfall_qty ?? item.still_needed;
                           return (
                             <div key={item.item_code} style={{
                               display: "flex", alignItems: "center", gap: 10,
                               padding: "8px 16px",
                               borderBottom: "1px solid var(--border)",
-                              opacity: isRemoved ? 0.5 : 1,
+                              opacity: isLocked || isRemoved ? 0.55 : 1,
                               transition: "opacity 0.15s",
+                              background: isLocked ? "#fffbeb" : "transparent",
                             }}>
                               <span style={{
                                 fontFamily: "monospace", fontSize: 11, fontWeight: 600, flexShrink: 0,
-                                background: isRemoved ? "var(--border)" : "#dbeafe",
-                                color: isRemoved ? "var(--muted)" : "#1d4ed8",
+                                background: isLocked ? "#fde68a" : isRemoved ? "var(--border)" : "#dbeafe",
+                                color: isLocked ? "#92400e" : isRemoved ? "var(--muted)" : "#1d4ed8",
                                 padding: "2px 6px", borderRadius: 4,
                               }}>{item.item_code}</span>
                               <span style={{
                                 flex: 1, fontSize: 13, fontWeight: 500,
                                 textDecoration: isRemoved ? "line-through" : "none",
-                                color: isRemoved ? "var(--muted)" : "var(--text)",
+                                color: isLocked || isRemoved ? "var(--muted)" : "var(--text)",
                               }}>{item.item_name}</span>
-                              <span style={{
-                                fontSize: 12, fontWeight: 700, flexShrink: 0,
-                                color: isRemoved ? "var(--muted)" : "#dc2626",
-                              }}>
-                                −{Number(qty).toLocaleString("en-IN")}
-                              </span>
-                              <button
-                                onClick={e => { e.stopPropagation(); toggleRemove(item.item_code); }}
-                                title={isRemoved ? "Restore to PO" : "Remove from this PO"}
-                                style={{
-                                  background: "none", border: "none", cursor: "pointer",
-                                  fontSize: 13, padding: "2px 6px", borderRadius: 4, flexShrink: 0,
-                                  color: isRemoved ? "#16a34a" : "#dc2626", fontWeight: 700,
+                              {isLocked ? (
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700, flexShrink: 0,
+                                  background: "#fef3c7", color: "#92400e",
+                                  border: "1px solid #fcd34d",
+                                  padding: "2px 7px", borderRadius: 10,
                                 }}>
-                                {isRemoved ? "↩" : "✕"}
-                              </button>
+                                  PO: {poInfo.po_number} · {poInfo.status}
+                                </span>
+                              ) : (
+                                <>
+                                  <span style={{
+                                    fontSize: 12, fontWeight: 700, flexShrink: 0,
+                                    color: isRemoved ? "var(--muted)" : "#dc2626",
+                                  }}>
+                                    −{Number(qty).toLocaleString("en-IN")}
+                                  </span>
+                                  <button
+                                    onClick={e => { e.stopPropagation(); toggleRemove(item.item_code); }}
+                                    title={isRemoved ? "Restore to PO" : "Remove from this PO"}
+                                    style={{
+                                      background: "none", border: "none", cursor: "pointer",
+                                      fontSize: 13, padding: "2px 6px", borderRadius: 4, flexShrink: 0,
+                                      color: isRemoved ? "#16a34a" : "#dc2626", fontWeight: 700,
+                                    }}>
+                                    {isRemoved ? "↩" : "✕"}
+                                  </button>
+                                </>
+                              )}
                             </div>
                           );
                         })}
-                        {activeCount === 0 && (
+                        {activeCount === 0 && lockedCount < items.length && (
                           <div style={{ padding: "10px 16px", fontSize: 12, color: "#b45309", background: "#fef9c3", textAlign: "center" }}>
-                            All items removed — restore at least one to generate a PO
+                            All non-locked items removed — restore at least one to generate a PO
                           </div>
                         )}
                       </div>
