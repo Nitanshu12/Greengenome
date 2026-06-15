@@ -128,6 +128,48 @@ async function buildPODoc(po, items, vendorName, leadTime, paymentTerms) {
 
   const blank = () => new Paragraph({ children: [new TextRun({ text: "" })] });
 
+  const tcH = (text) => new Paragraph({
+    spacing: { before: 140, after: 50 },
+    children: [new TextRun({ text, bold: true, size: 20 })],
+  });
+  const tcB = (text) => new Paragraph({
+    indent: { left: 360 },
+    spacing: { after: 50 },
+    children: [new TextRun({ text: `- ${text}`, size: 20 })],
+  });
+  const tcI = (text) => new Paragraph({
+    indent: { left: 720 },
+    spacing: { after: 40 },
+    children: [new TextRun({ text, size: 20 })],
+  });
+
+  const TC_CLAUSES = [
+    tcH("1.  Taxes & Duties"),
+    tcB("All applicable taxes and duties shall be levied as per prevailing Government of India guidelines and statutory provisions at the time of billing."),
+    tcB("Any changes in tax structure during the contract period shall be borne as per government notifications."),
+
+    tcH("2.  Payment Terms"),
+    tcB("Payment shall be made strictly as per the mutually agreed terms."),
+
+    tcH("3.  Delivery Terms"),
+    tcB("Delivery of goods shall be made to the following location:"),
+    tcI("WareHouse Location"),
+    tcI("B-253, Block B, Industrial Area, Phase I, Naraina,"),
+    tcI("New Delhi – 110028"),
+    tcB("The supplier shall ensure timely delivery in accordance with the delivery schedule mentioned in the Purchase Order."),
+    tcB("Any delay in delivery must be communicated in advance and is subject to acceptance by the Buyer."),
+
+    tcH("4.  Inspection & Acceptance"),
+    tcB("All goods supplied shall be subject to inspection at the delivery location."),
+    tcB("Acceptance shall be confirmed only after verification of quality, quantity, and compliance with specifications."),
+
+    tcH("5.  Compliance"),
+    tcB("The supplier shall comply with all applicable laws, regulations, and statutory requirements in relation to manufacturing, supply, and delivery of goods."),
+
+    tcH("6.  Force Majeure"),
+    tcB("Neither party shall be held liable for failure to perform obligations due to unforeseen circumstances beyond reasonable control, including but not limited to natural disasters, government actions, or strikes."),
+  ];
+
   const doc = new Document({
     sections: [{
       properties: {
@@ -150,9 +192,8 @@ async function buildPODoc(po, items, vendorName, leadTime, paymentTerms) {
         blank(),
         p(amountInWords(netTotal), { italics: true, size: 20 }),
         blank(),
-        p("Term & Conditions", { bold: true }),
-        p(`Delivery Time: ${leadTime || ""}`),
-        p(`Payment terms: ${paymentTerms || ""}`),
+        p("Term & Conditions", { bold: true, size: 24 }),
+        ...TC_CLAUSES,
         blank(),
         p("FOR TURN LABS", { bold: true, size: 24, align: AlignmentType.RIGHT }),
       ],
