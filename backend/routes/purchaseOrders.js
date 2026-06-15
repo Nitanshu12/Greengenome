@@ -134,7 +134,7 @@ async function buildPODoc(po, items, vendorName, leadTime, paymentTerms) {
         page: { margin: { top: 900, right: 900, bottom: 900, left: 900 } },
       },
       children: [
-        p(`Ref: ${po.po_number || "—"}`, { bold: true, size: 24 }),
+        p(`PO Number: ${po.po_number || "NULL"}`, { bold: true, size: 24 }),
         blank(),
         p("To,"),
         p(vendorName || "", { bold: true }),
@@ -186,8 +186,10 @@ router.post("/", ...adminOnly, async (req, res) => {
     const total_amount = enriched.reduce((s, i) => s + i.line_total, 0);
     const gst_amount   = enriched.reduce((s, i) => s + i.line_total * i.gst_percent / 100, 0);
     const net_total    = total_amount + gst_amount;
-    const created_by   = req.session?.user?.username || null;
-    const year2        = new Date().getFullYear().toString().slice(-2);
+    const created_by = req.session?.user?.username || null;
+    const now        = new Date();
+    const year       = now.getFullYear();
+    const month      = String(now.getMonth() + 1).padStart(2, "0");
 
     const [ins] = await pool.query(
       `INSERT INTO purchase_orders (vendor_code, total_amount, gst_amount, net_total, notes, created_by)
@@ -195,7 +197,7 @@ router.post("/", ...adminOnly, async (req, res) => {
       [vendor_code, total_amount.toFixed(2), gst_amount.toFixed(2), net_total.toFixed(2), notes || null, created_by]
     );
     const po_id     = ins.insertId;
-    const po_number = `${po_id}/${year2}`;
+    const po_number = `${year}/${month}/${po_id}`;
 
     await pool.query("UPDATE purchase_orders SET po_number = ? WHERE id = ?", [po_number, po_id]);
 
