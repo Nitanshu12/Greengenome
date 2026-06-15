@@ -12,6 +12,7 @@ const NAV = [
   { to: "/bom-disaster",  icon: "📋", label: "BOM — Disaster" },
   { to: "/stock-batches", icon: "🏬", label: "Stock Batches" },
   { to: "/create-kit",   icon: "🧰", label: "Create Kit" },
+  { to: "/po-status",    icon: "📄", label: "Purchase Orders" },
 ];
 
 const ADMIN_NAV = [

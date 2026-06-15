@@ -171,6 +171,37 @@ async function initSchema() {
     `);
 
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS purchase_orders (
+        id           INT AUTO_INCREMENT PRIMARY KEY,
+        po_number    VARCHAR(20)   DEFAULT NULL,
+        vendor_code  VARCHAR(50)   NOT NULL,
+        status       ENUM('draft','sent','received','cancelled') NOT NULL DEFAULT 'draft',
+        total_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+        gst_amount   DECIMAL(14,2) NOT NULL DEFAULT 0,
+        net_total    DECIMAL(14,2) NOT NULL DEFAULT 0,
+        notes        TEXT          DEFAULT NULL,
+        created_by   VARCHAR(100)  DEFAULT NULL,
+        created_at   TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (vendor_code) REFERENCES vendors(vendor_code) ON DELETE RESTRICT
+      ) ENGINE=InnoDB
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS purchase_order_items (
+        id          INT AUTO_INCREMENT PRIMARY KEY,
+        po_id       INT           NOT NULL,
+        item_code   VARCHAR(50)   NOT NULL,
+        item_name   VARCHAR(500)  NOT NULL,
+        quantity    INT           NOT NULL DEFAULT 0,
+        unit        VARCHAR(50)   DEFAULT NULL,
+        unit_price  DECIMAL(12,2) NOT NULL DEFAULT 0,
+        gst_percent DECIMAL(5,2)  NOT NULL DEFAULT 0,
+        line_total  DECIMAL(14,2) NOT NULL DEFAULT 0,
+        FOREIGN KEY (po_id) REFERENCES purchase_orders(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS assembled_kits (
         kit_id       INT AUTO_INCREMENT PRIMARY KEY,
         kit_name     VARCHAR(200) NOT NULL,

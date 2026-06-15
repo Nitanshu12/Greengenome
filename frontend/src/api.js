@@ -18,7 +18,7 @@ async function request(method, path, body, isFormData = false) {
 
   // Handle file downloads (blob)
   const contentType = res.headers.get("content-type") || "";
-  if (contentType.includes("spreadsheet") || contentType.includes("octet-stream")) {
+  if (contentType.includes("spreadsheet") || contentType.includes("octet-stream") || contentType.includes("wordprocessingml")) {
     if (!res.ok) throw new Error("Download failed");
     return res.blob();
   }
@@ -106,6 +106,13 @@ export const api = {
   getKitHistory: ()     => request("GET",  "/kit-assembly/history"),
   getKitDetails: (id)   => request("GET",  `/kit-assembly/${id}/details`),
   cancelKit:     (id)   => request("POST", `/kit-assembly/${id}/cancel`),
+
+  // Purchase Orders
+  createPO:       (body)         => request("POST",  "/purchase-orders", body),
+  getPOs:         ()             => request("GET",   "/purchase-orders"),
+  getPODetails:   (id)           => request("GET",   `/purchase-orders/${id}`),
+  downloadPO:     (id)           => request("GET",   `/purchase-orders/${id}/download`),
+  updatePOStatus: (id, status)   => request("PATCH", `/purchase-orders/${id}/status`, { status }),
 
   // Admin — users
   getUsers:       ()      => request("GET",   "/admin/users"),

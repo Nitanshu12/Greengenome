@@ -138,8 +138,9 @@ app.use("/api/item-documents",  require("./routes/itemDocuments"));
 app.use("/api/batch-documents", require("./routes/batchDocuments"));
 app.use("/api/bom-disaster",   require("./routes/bomDisaster"));
 app.use("/api/stock-batches",  require("./routes/stockBatches"));
-app.use("/api/kit-assembly",   require("./routes/kitAssembly"));
-app.use("/api",                require("./routes/kits"));
+app.use("/api/kit-assembly",      require("./routes/kitAssembly"));
+app.use("/api/purchase-orders",  require("./routes/purchaseOrders"));
+app.use("/api",                  require("./routes/kits"));
 
 
 

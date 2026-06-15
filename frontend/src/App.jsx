@@ -13,6 +13,7 @@ import ItemVendors from "./pages/ItemVendors";
 import BomDisaster from "./pages/BomDisaster";
 import StockBatches from "./pages/StockBatches";
 import CreateKit from "./pages/CreateKit";
+import POStatus from "./pages/POStatus";
 
 function RequireAuth({ children, adminOnly = false }) {
   const { user } = useAuth();
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="bom-disaster"   element={<BomDisaster />} />
         <Route path="stock-batches"  element={<StockBatches />} />
         <Route path="create-kit"     element={<CreateKit />} />
+        <Route path="po-status"      element={<POStatus />} />
         <Route path="admin/upload" element={<RequireAuth adminOnly><AdminUpload /></RequireAuth>} />
         <Route path="admin/users" element={<RequireAuth adminOnly><AdminUsers /></RequireAuth>} />
       </Route>

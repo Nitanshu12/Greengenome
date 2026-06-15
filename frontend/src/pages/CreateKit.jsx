@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api";
+import { api, downloadBlob } from "../api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/Toast";
 
@@ -51,11 +51,12 @@ function SummaryChip({ count, total, type }) {
 }
 
 function CombinedOrderModal({ shortfalls, onClose, toast }) {
-  const [loading, setLoading]         = useState(true);
+  const [loading, setLoading]           = useState(true);
   const [vendorGroups, setVendorGroups] = useState([]);
-  const [unlinked, setUnlinked]       = useState([]);
-  const [selected, setSelected]       = useState(null);
-  const [removed, setRemoved]         = useState(new Set());
+  const [unlinked, setUnlinked]         = useState([]);
+  const [selected, setSelected]         = useState(null);
+  const [removed, setRemoved]           = useState(new Set());
+  const [generating, setGenerating]     = useState(false);
 
   useEffect(() => {
     api.getItemVendors()
@@ -70,7 +71,7 @@ function CombinedOrderModal({ shortfalls, onClose, toast }) {
           if (vendors.length === 0) { noVendor.push(sf); continue; }
           for (const v of vendors) {
             if (!vMap[v.vendor_code]) vMap[v.vendor_code] = { vendor: v, items: [] };
-            vMap[v.vendor_code].items.push(sf);
+            vMap[v.vendor_code].items.push({ ...sf, offer_price: v.offer_price || 0 });
           }
         }
 
@@ -239,11 +240,37 @@ function CombinedOrderModal({ shortfalls, onClose, toast }) {
         )}
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={!canGenerate}
-            onClick={() => toast("PO generation will be available in the next update")}
-            style={{ opacity: canGenerate ? 1 : 0.5 }}>
-            Generate Combined PO →
+          <button className="btn btn-ghost" onClick={onClose} disabled={generating}>Cancel</button>
+          <button className="btn btn-primary" disabled={!canGenerate || generating}
+            style={{ opacity: canGenerate && !generating ? 1 : 0.5 }}
+            onClick={async () => {
+              if (!selectedGroup) return;
+              setGenerating(true);
+              try {
+                const body = {
+                  vendor_code: selectedGroup.vendor.vendor_code,
+                  items: activeItems.map(item => ({
+                    item_code:  item.item_code,
+                    item_name:  item.item_name,
+                    quantity:   item.shortfall_qty ?? item.still_needed ?? 0,
+                    unit_price: Number(item.offer_price) || 0,
+                    unit:       item.unit || "",
+                  })),
+                };
+                const r = await api.createPO(body);
+                const blob = await api.downloadPO(r.po_id);
+                downloadBlob(blob, `PO-${r.po_number.replace("/", "-")}.docx`);
+                toast(`Combined PO #${r.po_number} generated and downloaded`);
+                onClose();
+              } catch (e) {
+                toast(e.message, "error");
+              } finally {
+                setGenerating(false);
+              }
+            }}>
+            {generating
+              ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span className="spinner" style={{ width: 14, height: 14 }} />Generating…</span>
+              : "Generate Combined PO →"}
           </button>
         </div>
       </div>
@@ -252,9 +279,10 @@ function CombinedOrderModal({ shortfalls, onClose, toast }) {
 }
 
 function VendorSelectModal({ item, onClose, toast }) {
-  const [vendors, setVendors]   = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [selected, setSelected] = useState(null);
+  const [vendors, setVendors]       = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [selected, setSelected]     = useState(null);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     api.getItemVendors()
@@ -266,8 +294,31 @@ function VendorSelectModal({ item, onClose, toast }) {
       .finally(() => setLoading(false));
   }, [item.item_code]);
 
-  function handleGeneratePO() {
-    toast("PO generation will be available in the next update");
+  async function handleGeneratePO() {
+    const selectedVendor = vendors.find(v => v.vendor_code === selected);
+    if (!selectedVendor) return;
+    setGenerating(true);
+    try {
+      const body = {
+        vendor_code: selectedVendor.vendor_code,
+        items: [{
+          item_code:  item.item_code,
+          item_name:  item.item_name,
+          quantity:   shortfall,
+          unit_price: Number(selectedVendor.offer_price) || 0,
+          unit:       item.unit || "",
+        }],
+      };
+      const r = await api.createPO(body);
+      const blob = await api.downloadPO(r.po_id);
+      downloadBlob(blob, `PO-${r.po_number.replace("/", "-")}.docx`);
+      toast(`PO #${r.po_number} generated and downloaded`);
+      onClose();
+    } catch (e) {
+      toast(e.message, "error");
+    } finally {
+      setGenerating(false);
+    }
   }
 
   const shortfall = item.still_needed ?? item.shortfall_qty;
@@ -359,10 +410,12 @@ function VendorSelectModal({ item, onClose, toast }) {
 
         {/* Footer */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={!selected} onClick={handleGeneratePO}
-            style={{ opacity: selected ? 1 : 0.5 }}>
-            Generate PO →
+          <button className="btn btn-ghost" onClick={onClose} disabled={generating}>Cancel</button>
+          <button className="btn btn-primary" disabled={!selected || generating} onClick={handleGeneratePO}
+            style={{ opacity: selected && !generating ? 1 : 0.5 }}>
+            {generating
+              ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}><span className="spinner" style={{ width: 14, height: 14 }} />Generating…</span>
+              : "Generate PO →"}
           </button>
         </div>
       </div>
