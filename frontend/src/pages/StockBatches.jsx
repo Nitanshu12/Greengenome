@@ -231,21 +231,12 @@ const EMPTY_BATCH_FORM = {
 };
 
 // ── Goods Receipt (Add) Modal ─────────────────────────────────────
-function BatchFormModal({ initial, items, vendors, itemVendors, onSave, onClose, saving }) {
+function BatchFormModal({ initial, items, vendors, itemVendors, sentPOs, onSave, onClose, saving }) {
   const [form, setForm]         = useState(() => initial ?? { ...EMPTY_BATCH_FORM });
-  const [sentPOs, setSentPOs]   = useState([]);
   const [selectedPoId, setSelectedPoId] = useState("");
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const isAdding = !initial;
-
-  // Load all sent POs once when adding
-  useEffect(() => {
-    if (!isAdding) return;
-    api.getSentPOs()
-      .then(d => setSentPOs(d.data || []))
-      .catch(() => setSentPOs([]));
-  }, [isAdding]);
 
   const selectedPO   = sentPOs.find(p => String(p.id) === String(selectedPoId)) || null;
   const resolvedItem = selectedPO?.items?.find(i => i.item_code === form.item_code) || null;
@@ -522,6 +513,7 @@ export default function StockBatches() {
   const [items, setItems] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [itemVendors, setItemVendors] = useState([]);
+  const [sentPOs, setSentPOs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -576,10 +568,15 @@ export default function StockBatches() {
     });
   }, [batches]);
 
+  const loadSentPOs = useCallback(() => {
+    api.getSentPOs().then(d => setSentPOs(d.data || [])).catch(() => {});
+  }, []);
+
   useEffect(() => {
     api.getItems().then(d => setItems(d.data)).catch(() => { });
     api.getVendors().then(d => setVendors(d.data)).catch(() => { });
     api.getItemVendors().then(d => setItemVendors(d.data)).catch(() => { });
+    loadSentPOs();
   }, []);
 
   const handleSave = async (form) => {
@@ -605,6 +602,7 @@ export default function StockBatches() {
       setEditTarget(null);
       load(true);
       loadSummary();
+      loadSentPOs();
     } catch (e) {
       toast(e.message, "error");
     } finally {
@@ -992,6 +990,7 @@ export default function StockBatches() {
           items={items}
           vendors={vendors}
           itemVendors={itemVendors}
+          sentPOs={sentPOs}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditTarget(null); }}
           saving={saving}
