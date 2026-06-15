@@ -3,8 +3,6 @@ import { api, downloadBlob } from "../api";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../hooks/useAuth";
 
-const STATUS_OPTIONS = ["draft", "sent", "received", "cancelled"];
-
 const STATUS_STYLE = {
   draft:     { color: "#6b7280", bg: "#f3f4f6",  label: "Draft" },
   sent:      { color: "#1d4ed8", bg: "#dbeafe",  label: "Sent" },
@@ -20,7 +18,7 @@ export default function POStatus() {
   const [pos, setPOs]           = useState([]);
   const [loading, setLoading]   = useState(true);
   const [downloading, setDownloading] = useState(null);
-  const [updating, setUpdating]       = useState(null);
+  const [cancelling, setCancelling]   = useState(null);
 
   useEffect(() => {
     api.getPOs()
@@ -42,17 +40,17 @@ export default function POStatus() {
     }
   };
 
-  const handleStatusChange = async (po, newStatus) => {
-    if (newStatus === po.status) return;
-    setUpdating(po.id);
+  const handleCancel = async (po) => {
+    if (!confirm(`Cancel PO #${po.po_number}? This cannot be undone.`)) return;
+    setCancelling(po.id);
     try {
-      await api.updatePOStatus(po.id, newStatus);
-      setPOs(prev => prev.map(p => p.id === po.id ? { ...p, status: newStatus } : p));
-      toast(`PO #${po.po_number} marked as ${newStatus}`);
+      await api.updatePOStatus(po.id, "cancelled");
+      setPOs(prev => prev.map(p => p.id === po.id ? { ...p, status: "cancelled" } : p));
+      toast(`PO #${po.po_number} cancelled`);
     } catch (e) {
       toast(e.message, "error");
     } finally {
-      setUpdating(null);
+      setCancelling(null);
     }
   };
 
@@ -130,48 +128,40 @@ export default function POStatus() {
                       ₹{Number(po.net_total || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </td>
                     <td>
-                      {isAdmin ? (
-                        <select
-                          value={po.status}
-                          disabled={updating === po.id}
-                          onChange={e => handleStatusChange(po, e.target.value)}
-                          style={{
-                            fontSize: 11, fontWeight: 700,
-                            color: s.color, background: s.bg,
-                            border: `1px solid ${s.color}55`,
-                            padding: "3px 8px", borderRadius: 20,
-                            cursor: "pointer", outline: "none",
-                          }}
-                        >
-                          {STATUS_OPTIONS.map(opt => (
-                            <option key={opt} value={opt} style={{ color: "#000", background: "#fff" }}>
-                              {STATUS_STYLE[opt]?.label || opt}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span style={{
-                          fontSize: 11, fontWeight: 700,
-                          color: s.color, background: s.bg,
-                          padding: "3px 10px", borderRadius: 20,
-                          border: `1px solid ${s.color}44`,
-                        }}>
-                          {s.label}
-                        </span>
-                      )}
+                      <span style={{
+                        fontSize: 11, fontWeight: 700,
+                        color: s.color, background: s.bg,
+                        padding: "3px 10px", borderRadius: 20,
+                        border: `1px solid ${s.color}44`,
+                        whiteSpace: "nowrap",
+                      }}>
+                        {s.label}
+                      </span>
                     </td>
                     <td style={{ color: "var(--muted)", fontSize: 12 }}>
                       {po.created_by || "—"}
                     </td>
                     <td>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => handleDownload(po)}
-                        disabled={downloading === po.id}
-                        style={{ fontSize: 12, whiteSpace: "nowrap" }}
-                      >
-                        {downloading === po.id ? "…" : "↓ DOCX"}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => handleDownload(po)}
+                          disabled={downloading === po.id}
+                          style={{ fontSize: 12, whiteSpace: "nowrap" }}
+                        >
+                          {downloading === po.id ? "…" : "↓ DOCX"}
+                        </button>
+                        {isAdmin && po.status === "sent" && (
+                          <button
+                            className="btn btn-danger btn-sm"
+                            onClick={() => handleCancel(po)}
+                            disabled={cancelling === po.id}
+                            style={{ fontSize: 12, whiteSpace: "nowrap" }}
+                          >
+                            {cancelling === po.id ? "…" : "Cancel"}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

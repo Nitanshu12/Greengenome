@@ -232,97 +232,154 @@ const EMPTY_BATCH_FORM = {
 
 // ── Goods Receipt (Add) Modal ─────────────────────────────────────
 function BatchFormModal({ initial, items, vendors, itemVendors, onSave, onClose, saving }) {
-  const [form, setForm]       = useState(() => initial ?? { ...EMPTY_BATCH_FORM });
-  const [linkPoId, setLinkPoId] = useState("");
-  const [activePOs, setActivePOs] = useState([]);
+  const [form, setForm]         = useState(() => initial ?? { ...EMPTY_BATCH_FORM });
+  const [sentPOs, setSentPOs]   = useState([]);
+  const [selectedPoId, setSelectedPoId] = useState("");
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const selectedItem = items.find(i => i.item_code === form.item_code);
+  const isAdding = !initial;
 
-  // Filter vendors based on selected item code
+  // Load all sent POs once when adding
+  useEffect(() => {
+    if (!isAdding) return;
+    api.getSentPOs()
+      .then(d => setSentPOs(d.data || []))
+      .catch(() => setSentPOs([]));
+  }, [isAdding]);
+
+  const selectedPO   = sentPOs.find(p => String(p.id) === String(selectedPoId)) || null;
+  const resolvedItem = selectedPO?.items?.find(i => i.item_code === form.item_code) || null;
+  const isPOMode     = isAdding && !!resolvedItem;
+
+  // When PO changes: auto-select item for single-item POs, otherwise clear
+  useEffect(() => {
+    if (!selectedPoId) {
+      setForm(f => ({ ...f, item_code: "", vendor_code: "", unit: "", qty_received: "" }));
+      return;
+    }
+    if (selectedPO?.items?.length === 1) {
+      const it = selectedPO.items[0];
+      setForm(f => ({
+        ...f,
+        item_code: it.item_code, vendor_code: selectedPO.vendor_code,
+        unit: it.unit, qty_received: String(it.quantity),
+      }));
+    } else {
+      setForm(f => ({ ...f, item_code: "", vendor_code: "", unit: "", qty_received: "" }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPoId]);
+
+  // When item selected from multi-item PO dropdown: auto-fill vendor/unit/qty
+  useEffect(() => {
+    if (!isAdding || !selectedPO || !form.item_code) return;
+    const poItem = selectedPO.items.find(i => i.item_code === form.item_code);
+    if (poItem) {
+      setForm(f => ({
+        ...f,
+        vendor_code: selectedPO.vendor_code,
+        unit: poItem.unit,
+        qty_received: String(poItem.quantity),
+      }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.item_code, selectedPO?.id]);
+
+  // Manual mode: filter vendors for selected item
   const filteredVendors = useMemo(() => {
     if (!form.item_code) return [];
     const mapping = itemVendors.find(iv => iv.item_code === form.item_code);
-    const mapped = mapping ? mapping.vendors : [];
-
-    // If editing a batch, preserve the initial vendor option in the list
-    if (initial && initial.vendor_code) {
+    const mapped  = mapping ? mapping.vendors : [];
+    if (initial?.vendor_code) {
       const exists = mapped.some(v => v.vendor_code === initial.vendor_code);
       if (!exists) {
-        const fullVendor = vendors.find(v => v.vendor_code === initial.vendor_code);
-        if (fullVendor) {
-          return [...mapped, fullVendor];
-        }
+        const fv = vendors.find(v => v.vendor_code === initial.vendor_code);
+        if (fv) return [...mapped, fv];
       }
     }
     return mapped;
   }, [form.item_code, itemVendors, initial, vendors]);
 
-  // Effect to set unit and clear invalid vendor when item changes
+  // Manual mode: set unit + clear invalid vendor when item changes
   useEffect(() => {
-    if (selectedItem && !initial) {
-      set("unit", selectedItem.unit);
-
-      // Check if current vendor is valid for the new item
+    if (!isAdding || selectedPO) return;
+    const item = items.find(i => i.item_code === form.item_code);
+    if (item) {
+      set("unit", item.unit);
       const mapping = itemVendors.find(iv => iv.item_code === form.item_code);
-      const mappedVendors = mapping ? mapping.vendors : [];
-      const isVendorValid = mappedVendors.some(v => v.vendor_code === form.vendor_code);
-      if (!isVendorValid) {
-        set("vendor_code", "");
-      }
+      const mapped  = mapping ? mapping.vendors : [];
+      if (!mapped.some(v => v.vendor_code === form.vendor_code)) set("vendor_code", "");
     }
-  }, [form.item_code, selectedItem, initial, itemVendors]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.item_code]);
 
-  // Fetch active POs for selected item (only when adding, not editing)
-  useEffect(() => {
-    if (initial || !form.item_code) { setActivePOs([]); setLinkPoId(""); return; }
-    api.getPOsForItem(form.item_code)
-      .then(d => setActivePOs(d.data || []))
-      .catch(() => setActivePOs([]));
-  }, [form.item_code, initial]);
+  const activeItems = useMemo(() =>
+    items.filter(i => i.is_active !== 0 || i.item_code === form.item_code),
+    [items, form.item_code]
+  );
 
-  // Filter items to show only active items (or the current item when editing)
-  const activeItems = useMemo(() => {
-    return items.filter(i => i.is_active !== 0 || i.item_code === form.item_code);
-  }, [items, form.item_code]);
+  // Items shown in dropdown: PO items when PO selected, otherwise all active
+  const dropdownItems = selectedPO
+    ? selectedPO.items.map(i => ({ item_code: i.item_code, label: `${i.item_code} — ${i.item_name} (${i.quantity} ${i.unit})` }))
+    : activeItems.map(i => ({ item_code: i.item_code, label: `${i.item_code} — ${i.name}` }));
+
+  const handleSave = () => {
+    onSave({ ...form, po_id: isPOMode ? selectedPO.id : null });
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal"
-        style={{ maxWidth: 660, width: "95%", maxHeight: "90vh", overflowY: "auto" }}
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="modal" style={{ maxWidth: 660, width: "95%", maxHeight: "90vh", overflowY: "auto" }}
+        onClick={e => e.stopPropagation()}>
         <div className="modal-title">{initial ? "Edit Batch" : "Record Goods Receipt"}</div>
 
-        {/* Item + Vendor */}
+        {/* PO selector — add mode only */}
+        {isAdding && (
+          <div className="form-group">
+            <label className="form-label">Purchase Order</label>
+            <select className="form-select" value={selectedPoId}
+              onChange={e => setSelectedPoId(e.target.value)}>
+              <option value="">Select PO</option>
+              {sentPOs.map(po => (
+                <option key={po.id} value={po.id}>
+                  {po.po_number} — {po.business_name || po.vendor_code}
+                  {" "}({po.items.length} item{po.items.length !== 1 ? "s" : ""})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Item + Vendor — single row, behaviour changes based on PO selection */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div className="form-group">
             <label className="form-label">Item *</label>
             <select className="form-select" value={form.item_code}
-              onChange={e => set("item_code", e.target.value)} disabled={!!initial}>
+              onChange={e => set("item_code", e.target.value)}
+              disabled={!!initial || (selectedPO?.items?.length === 1)}>
               <option value="">Select item…</option>
-              {activeItems.map(i => (
-                <option key={i.item_code} value={i.item_code}>
-                  {i.item_code} — {i.name}
-                </option>
+              {dropdownItems.map(i => (
+                <option key={i.item_code} value={i.item_code}>{i.label}</option>
               ))}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">Vendor</label>
-            <select className="form-select" value={form.vendor_code}
-              onChange={e => set("vendor_code", e.target.value)}
-              disabled={!form.item_code}>
-              <option value="">
-                {!form.item_code ? "Select an item first…" : "Select vendor…"}
-              </option>
-              {filteredVendors.map(v => (
-                <option key={v.vendor_code} value={v.vendor_code}>
-                  {v.vendor_code} — {v.business_name}
-                </option>
-              ))}
-            </select>
+            {selectedPO ? (
+              <input className="form-input" disabled
+                value={`${selectedPO.vendor_code} — ${selectedPO.business_name || ""}`} />
+            ) : (
+              <select className="form-select" value={form.vendor_code}
+                onChange={e => set("vendor_code", e.target.value)}
+                disabled={!form.item_code || !!initial}>
+                <option value="">{!form.item_code ? "Select item first…" : "Select vendor…"}</option>
+                {filteredVendors.map(v => (
+                  <option key={v.vendor_code} value={v.vendor_code}>
+                    {v.vendor_code} — {v.business_name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -337,7 +394,7 @@ function BatchFormModal({ initial, items, vendors, itemVendors, onSave, onClose,
           <div className="form-group">
             <label className="form-label">Unit *</label>
             <select className="form-select" value={form.unit}
-              onChange={e => set("unit", e.target.value)}>
+              onChange={e => set("unit", e.target.value)} disabled={isPOMode}>
               <option value="">Select unit…</option>
               {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
@@ -361,7 +418,14 @@ function BatchFormModal({ initial, items, vendors, itemVendors, onSave, onClose,
         {/* Qty + Status */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div className="form-group">
-            <label className="form-label">Quantity Received *</label>
+            <label className="form-label">
+              Quantity Received *
+              {isPOMode && (
+                <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 6, fontWeight: 400 }}>
+                  (pre-filled · editable)
+                </span>
+              )}
+            </label>
             <input className="form-input" type="number" min="1" value={form.qty_received}
               onChange={e => set("qty_received", e.target.value)} placeholder="0"
               disabled={!!initial} />
@@ -392,27 +456,9 @@ function BatchFormModal({ initial, items, vendors, itemVendors, onSave, onClose,
             style={{ resize: "vertical" }} />
         </div>
 
-        {/* Link to PO — only shown when adding a new batch and active POs exist for the item */}
-        {!initial && activePOs.length > 0 && (
-          <div className="form-group">
-            <label className="form-label">Link to Purchase Order (optional)</label>
-            <select className="form-select" value={linkPoId} onChange={e => setLinkPoId(e.target.value)}>
-              <option value="">— No PO link —</option>
-              {activePOs.map(po => (
-                <option key={po.id} value={po.id}>
-                  PO {po.po_number} · {po.business_name || po.vendor_code} · {po.ordered_qty} {po.unit} ordered
-                </option>
-              ))}
-            </select>
-            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
-              Linking marks this batch as received against the PO. PO auto-marks received when all its items have a linked batch.
-            </div>
-          </div>
-        )}
-
         <div className="flex gap-2" style={{ marginTop: 4 }}>
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary ml-auto" onClick={() => onSave({ ...form, po_id: linkPoId || null })} disabled={saving}>
+          <button className="btn btn-primary ml-auto" onClick={handleSave} disabled={saving}>
             {saving ? "Saving…" : initial ? "Save Changes" : "Record Receipt"}
           </button>
         </div>

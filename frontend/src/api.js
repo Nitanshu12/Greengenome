@@ -115,6 +115,7 @@ export const api = {
   updatePOStatus:   (id, status) => request("PATCH", `/purchase-orders/${id}/status`, { status }),
   getActivePOItems: ()           => request("GET",   "/purchase-orders/active-items"),
   getPOsForItem:    (item_code)  => request("GET",   `/purchase-orders/for-item/${encodeURIComponent(item_code)}`),
+  getSentPOs:       ()           => request("GET",   "/purchase-orders/sent"),
 
   // Admin — users
   getUsers:       ()      => request("GET",   "/admin/users"),

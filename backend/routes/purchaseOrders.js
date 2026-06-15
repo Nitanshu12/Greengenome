@@ -233,8 +233,8 @@ router.post("/", ...adminOnly, async (req, res) => {
     const month      = String(now.getMonth() + 1).padStart(2, "0");
 
     const [ins] = await pool.query(
-      `INSERT INTO purchase_orders (vendor_code, total_amount, gst_amount, net_total, notes, created_by)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO purchase_orders (vendor_code, status, total_amount, gst_amount, net_total, notes, created_by)
+       VALUES (?, 'sent', ?, ?, ?, ?, ?)`,
       [vendor_code, total_amount.toFixed(2), gst_amount.toFixed(2), net_total.toFixed(2), notes || null, created_by]
     );
     const po_id     = ins.insertId;
@@ -312,6 +312,38 @@ router.get("/for-item/:item_code", requireLogin, async (req, res) => {
       ORDER BY po.id DESC
     `, [req.params.item_code]);
     res.json({ data: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/purchase-orders/sent  — all sent POs with their items (for Receipt dropdown)
+router.get("/sent", requireLogin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT po.id, po.po_number, po.vendor_code, v.business_name, po.status,
+             poi.item_code, poi.item_name, poi.quantity, poi.unit, poi.unit_price
+      FROM purchase_orders po
+      LEFT JOIN vendors v ON v.vendor_code = po.vendor_code
+      JOIN purchase_order_items poi ON poi.po_id = po.id
+      WHERE po.status = 'sent'
+      ORDER BY po.id DESC, poi.id ASC
+    `);
+    const posMap = new Map();
+    for (const row of rows) {
+      if (!posMap.has(row.id)) {
+        posMap.set(row.id, {
+          id: row.id, po_number: row.po_number,
+          vendor_code: row.vendor_code, business_name: row.business_name,
+          status: row.status, items: [],
+        });
+      }
+      posMap.get(row.id).items.push({
+        item_code: row.item_code, item_name: row.item_name,
+        quantity: row.quantity, unit: row.unit, unit_price: row.unit_price,
+      });
+    }
+    res.json({ data: Array.from(posMap.values()) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
