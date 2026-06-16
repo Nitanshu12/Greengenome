@@ -586,7 +586,7 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
   return (
     <div className="modal-overlay">
       <div className="modal"
-        style={{ maxWidth: 920, width: "96%", maxHeight: "92vh", overflowY: "auto" }}>
+        style={{ maxWidth: 1100, width: "98%", maxHeight: "92vh", overflowY: "auto" }}>
 
         {/* Header with title + close button */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
@@ -678,17 +678,17 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
               </span>
             </div>
 
-            <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", minWidth: 640, borderCollapse: "collapse" }}>
+            <div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "var(--bg-alt, #f8f9fa)", fontSize: 12, color: "var(--muted)" }}>
-                  <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>Code</th>
-                  <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>Item Name</th>
-                  <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>
+                  <th style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", width: "11%" }}>Code</th>
+                  <th style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>Item Name</th>
+                  <th style={{ padding: "7px 10px", textAlign: "right", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", width: "10%" }}>
                     {selectedPO.status === "short" ? "Pending Qty" : "PO Qty"}
                   </th>
-                  <th style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>Action / Qty Received</th>
-                  <th style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>Status</th>
+                  <th style={{ padding: "7px 10px", textAlign: "center", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", width: "28%" }}>Action</th>
+                  <th style={{ padding: "7px 10px", textAlign: "center", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", width: "10%" }}>Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -705,23 +705,23 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
                       transition: "background 0.15s",
                     }}>
                       {/* Code */}
-                      <td style={{ padding: "10px 12px" }}>
+                      <td style={{ padding: "6px 10px" }}>
                         <span style={{
                           fontFamily: "monospace", fontWeight: 600, fontSize: 11,
-                          background: "var(--border)", padding: "2px 6px", borderRadius: 4,
+                          background: "var(--border)", padding: "2px 5px", borderRadius: 4,
                         }}>{item.item_code}</span>
                       </td>
                       {/* Name */}
-                      <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 500 }}>
+                      <td style={{ padding: "6px 10px", fontSize: 13, fontWeight: 500 }}>
                         {item.item_name}
                       </td>
                       {/* PO qty */}
-                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap" }}>
                         {item.quantity}
                         <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 4 }}>{item.unit}</span>
                       </td>
                       {/* Action cell */}
-                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                      <td style={{ padding: "6px 10px", textAlign: "center" }}>
                         {s.mode === "pending" && (
                           <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
                             <button onClick={() => handleFull(item.item_code)}
@@ -790,7 +790,7 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
                         )}
                       </td>
                       {/* Status badge */}
-                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                      <td style={{ padding: "6px 10px", textAlign: "center" }}>
                         {s.mode === "pending" && (
                           <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>⬜ Pending</span>
                         )}
