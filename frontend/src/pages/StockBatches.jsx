@@ -532,8 +532,8 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
     setItemStatuses(prev => ({ ...prev, [item_code]: { mode: "full", qty_received: po_qty } }));
   };
 
-  const handleShort = (item_code) => {
-    setItemStatuses(prev => ({ ...prev, [item_code]: { mode: "short", qty_received: "" } }));
+  const handleQty = (item_code) => {
+    setItemStatuses(prev => ({ ...prev, [item_code]: { mode: "qty", qty_received: "" } }));
   };
 
   const handleUndo = (item_code) => {
@@ -546,28 +546,31 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
 
   const markedCount = effectiveItems.filter(i => itemStatuses[i.item_code]?.mode !== "pending").length;
 
-  const canSubmit = !!(selectedPO && effectiveItems.length > 0 &&
+  // At least 1 item marked; pending items are skipped. Qty-mode items must have a valid qty (>= 1).
+  const canSubmit = !!(selectedPO && markedCount > 0 &&
     effectiveItems.every(i => {
       const s = itemStatuses[i.item_code];
-      if (!s || s.mode === "pending") return false;
-      if (s.mode === "short") {
+      if (!s || s.mode === "pending") return true; // pending = skip, not a blocker
+      if (s.mode === "qty") {
         const v = Number(s.qty_received);
-        return s.qty_received !== "" && v >= 1 && v <= i.quantity;
+        return s.qty_received !== "" && v >= 1;
       }
-      return true;
+      return true; // full mode always valid
     }));
 
   const handleSubmit = async () => {
     if (!canSubmit || !selectedPO) return;
     setSubmitting(true);
     try {
-      const items = effectiveItems.map(i => ({
-        item_code:    i.item_code,
-        vendor_code:  selectedPO.vendor_code,
-        unit:         i.unit,
-        qty_received: Number(itemStatuses[i.item_code].qty_received),
-        po_qty:       i.quantity,
-      }));
+      const items = effectiveItems
+        .filter(i => itemStatuses[i.item_code]?.mode !== "pending")
+        .map(i => ({
+          item_code:    i.item_code,
+          vendor_code:  selectedPO.vendor_code,
+          unit:         i.unit,
+          qty_received: Number(itemStatuses[i.item_code].qty_received),
+          po_qty:       i.quantity,
+        }));
       await api.receivePO({
         po_id:            selectedPO.id,
         storage_location: storageLocation || null,
@@ -693,15 +696,21 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
               </thead>
               <tbody>
                 {effectiveItems.map(item => {
-                  const s = itemStatuses[item.item_code] || { mode: "pending", qty_received: "" };
-                  const shortVal = Number(s.qty_received);
-                  const shortInvalid = s.mode === "short" && s.qty_received !== "" &&
-                    (shortVal < 1 || shortVal > item.quantity);
+                  const s        = itemStatuses[item.item_code] || { mode: "pending", qty_received: "" };
+                  const qtyVal   = Number(s.qty_received);
+                  const qtyInvalid = s.mode === "qty" && s.qty_received !== "" && qtyVal < 1;
+                  const isExcess = s.mode === "qty" && s.qty_received !== "" && qtyVal > item.quantity;
+                  const isQtyFull = s.mode === "qty" && s.qty_received !== "" && qtyVal === item.quantity;
+                  const isShort  = s.mode === "qty" && s.qty_received !== "" && qtyVal > 0 && qtyVal < item.quantity;
+
+                  const rowBg = s.mode === "full" || isExcess || isQtyFull
+                    ? "#f0fdf4"
+                    : isShort ? "#fffbeb" : "transparent";
 
                   return (
                     <tr key={item.item_code} style={{
                       borderTop: "1px solid var(--border)",
-                      background: s.mode === "full" ? "#f0fdf4" : s.mode === "short" ? "#fffbeb" : "transparent",
+                      background: rowBg,
                       transition: "background 0.15s",
                     }}>
                       {/* Code */}
@@ -715,7 +724,7 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
                       <td style={{ padding: "6px 10px", fontSize: 13, fontWeight: 500 }}>
                         {item.item_name}
                       </td>
-                      {/* PO qty */}
+                      {/* Ordered qty */}
                       <td style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap" }}>
                         {item.quantity}
                         <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 4 }}>{item.unit}</span>
@@ -732,13 +741,13 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
                               }}>
                               ✓ Full
                             </button>
-                            <button onClick={() => handleShort(item.item_code)}
+                            <button onClick={() => handleQty(item.item_code)}
                               style={{
-                                background: "#fef3c7", color: "#92400e",
-                                border: "1px solid #fcd34d", borderRadius: 6, padding: "5px 12px",
+                                background: "#eff6ff", color: "#1d4ed8",
+                                border: "1px solid #bfdbfe", borderRadius: 6, padding: "5px 12px",
                                 cursor: "pointer", fontWeight: 700, fontSize: 12,
                               }}>
-                              ⚠ Short
+                              # Qty
                             </button>
                           </div>
                         )}
@@ -753,18 +762,19 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
                             </button>
                           </div>
                         )}
-                        {s.mode === "short" && (
+                        {s.mode === "qty" && (
                           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                               <input
-                                type="number" min="1" max={item.quantity}
+                                type="number" min="1"
                                 value={s.qty_received}
                                 onChange={e => setItemQty(item.item_code, e.target.value)}
-                                placeholder="Qty rcvd"
+                                placeholder="Enter qty"
+                                autoFocus
                                 style={{
                                   width: 90, padding: "4px 8px", borderRadius: 6,
                                   fontSize: 13, fontWeight: 600, textAlign: "center",
-                                  border: `1.5px solid ${shortInvalid ? "#dc2626" : "#fcd34d"}`,
+                                  border: `1.5px solid ${qtyInvalid ? "#dc2626" : isExcess ? "#16a34a" : isShort ? "#fcd34d" : "#bfdbfe"}`,
                                   outline: "none",
                                 }}
                               />
@@ -776,14 +786,19 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
                                 ↩
                               </button>
                             </div>
-                            {!shortInvalid && s.qty_received !== "" && (
+                            {isShort && (
                               <span style={{ fontSize: 11, color: "#b45309" }}>
-                                Short by {item.quantity - shortVal} {item.unit}
+                                Short by {item.quantity - qtyVal} {item.unit}
                               </span>
                             )}
-                            {shortInvalid && (
+                            {isExcess && (
+                              <span style={{ fontSize: 11, color: "#15803d" }}>
+                                Excess by {qtyVal - item.quantity} {item.unit}
+                              </span>
+                            )}
+                            {qtyInvalid && (
                               <span style={{ fontSize: 11, color: "#dc2626" }}>
-                                Must be 1 – {item.quantity}
+                                Must be at least 1
                               </span>
                             )}
                           </div>
@@ -792,19 +807,30 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
                       {/* Status badge */}
                       <td style={{ padding: "6px 10px", textAlign: "center" }}>
                         {s.mode === "pending" && (
-                          <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>⬜ Pending</span>
+                          <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>— Skip</span>
                         )}
                         {s.mode === "full" && (
-                          <span style={{
-                            fontSize: 11, fontWeight: 700, color: "#15803d",
-                            background: "#dcfce7", padding: "2px 8px", borderRadius: 10,
-                          }}>✓ Full</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "2px 8px", borderRadius: 10 }}>
+                            ✓ Full
+                          </span>
                         )}
-                        {s.mode === "short" && (
-                          <span style={{
-                            fontSize: 11, fontWeight: 700, color: "#92400e",
-                            background: "#fef3c7", padding: "2px 8px", borderRadius: 10,
-                          }}>⚠ Short</span>
+                        {s.mode === "qty" && s.qty_received === "" && (
+                          <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>…</span>
+                        )}
+                        {isShort && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#92400e", background: "#fef3c7", padding: "2px 8px", borderRadius: 10 }}>
+                            ⚠ Short
+                          </span>
+                        )}
+                        {(isQtyFull) && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "2px 8px", borderRadius: 10 }}>
+                            ✓ Full
+                          </span>
+                        )}
+                        {isExcess && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "2px 8px", borderRadius: 10 }}>
+                            ✓ Excess
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -829,8 +855,8 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
               ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span className="spinner" style={{ width: 14, height: 14 }} />Saving…
                 </span>
-              : selectedPO
-                ? `Submit Receipt (${effectiveItems.length} item${effectiveItems.length !== 1 ? "s" : ""}) →`
+              : markedCount > 0
+                ? `Submit Receipt (${markedCount} of ${effectiveItems.length} item${effectiveItems.length !== 1 ? "s" : ""}) →`
                 : "Submit Receipt →"}
           </button>
         </div>

@@ -188,12 +188,10 @@ router.post("/receive-po", ...adminOnly, async (req, res) => {
     }
 
     const batchIds = [];
-    let anyShort = false;
 
     for (const item of items) {
-      const { item_code, vendor_code, unit, qty_received, po_qty } = item;
-      if (!item_code || !qty_received || !unit) continue;
-      if (Number(qty_received) < Number(po_qty)) anyShort = true;
+      const { item_code, vendor_code, unit, qty_received } = item;
+      if (!item_code || !unit || Number(qty_received) < 1) continue; // skip unprocessed items
 
       const [result] = await conn.query(
         `INSERT INTO stock_batches
@@ -205,7 +203,19 @@ router.post("/receive-po", ...adminOnly, async (req, res) => {
       batchIds.push(result.insertId);
     }
 
-    const newStatus = anyShort ? "short" : "received";
+    // Re-query total received per item across ALL batches (handles partial submissions correctly)
+    const [totals] = await conn.query(
+      `SELECT poi.item_code, poi.quantity AS ordered_qty,
+              COALESCE(SUM(sb.qty_received), 0) AS total_received
+       FROM purchase_order_items poi
+       LEFT JOIN stock_batches sb ON sb.po_id = ? AND sb.item_code = poi.item_code
+       WHERE poi.po_id = ?
+       GROUP BY poi.item_code, poi.quantity`,
+      [po_id, po_id]
+    );
+    const allCovered = totals.length > 0 && totals.every(r => Number(r.total_received) >= Number(r.ordered_qty));
+    const newStatus = allCovered ? "received" : "short";
+
     await conn.query(
       "UPDATE purchase_orders SET status = ? WHERE id = ?",
       [newStatus, po_id]
