@@ -1027,7 +1027,7 @@ export default function CreateKit() {
                             {row.item_code}
                           </span>
                         </td>
-                        <td style={{ padding: "5px 8px", fontWeight: 500, wordBreak: "break-word", lineHeight: 1.3 }}>
+                        <td style={{ padding: "5px 8px", fontWeight: 500, whiteSpace: "normal", wordBreak: "break-word", lineHeight: 1.4 }}>
                           {row.item_name}
                         </td>
                         <td style={{ textAlign: "right", padding: "5px 8px", whiteSpace: "nowrap" }}>
