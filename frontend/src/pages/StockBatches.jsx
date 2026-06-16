@@ -503,6 +503,342 @@ function IssueModal({ batch, onSave, onClose, saving }) {
   );
 }
 
+// ── Receive Against PO Modal ──────────────────────────────────────
+function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [selectedPoId, setSelectedPoId]       = useState("");
+  const [receivedDate, setReceivedDate]       = useState(today);
+  const [storageLocation, setStorageLocation] = useState("WAREHOUSE");
+  const [remarks, setRemarks]                 = useState("");
+  const [itemStatuses, setItemStatuses]       = useState({});
+  const [submitting, setSubmitting]           = useState(false);
+
+  const selectedPO = sentPOs.find(p => String(p.id) === String(selectedPoId)) || null;
+
+  // Effective items: short POs use pre-loaded pending-only list; open POs use all items
+  const effectiveItems = selectedPO?.status === "short"
+    ? (shortPOItems[selectedPO.id] || [])
+    : (selectedPO?.items || []);
+
+  // Reset per-item state whenever selection or effective items change
+  useEffect(() => {
+    const init = {};
+    effectiveItems.forEach(i => { init[i.item_code] = { mode: "pending", qty_received: "" }; });
+    setItemStatuses(init);
+  }, [selectedPoId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleFull = (item_code) => {
+    const po_qty = effectiveItems.find(i => i.item_code === item_code)?.quantity ?? 0;
+    setItemStatuses(prev => ({ ...prev, [item_code]: { mode: "full", qty_received: po_qty } }));
+  };
+
+  const handleShort = (item_code) => {
+    setItemStatuses(prev => ({ ...prev, [item_code]: { mode: "short", qty_received: "" } }));
+  };
+
+  const handleUndo = (item_code) => {
+    setItemStatuses(prev => ({ ...prev, [item_code]: { mode: "pending", qty_received: "" } }));
+  };
+
+  const setItemQty = (item_code, val) => {
+    setItemStatuses(prev => ({ ...prev, [item_code]: { ...prev[item_code], qty_received: val } }));
+  };
+
+  const markedCount = effectiveItems.filter(i => itemStatuses[i.item_code]?.mode !== "pending").length;
+
+  const canSubmit = !!(selectedPO && effectiveItems.length > 0 &&
+    effectiveItems.every(i => {
+      const s = itemStatuses[i.item_code];
+      if (!s || s.mode === "pending") return false;
+      if (s.mode === "short") {
+        const v = Number(s.qty_received);
+        return s.qty_received !== "" && v >= 1 && v <= i.quantity;
+      }
+      return true;
+    }));
+
+  const handleSubmit = async () => {
+    if (!canSubmit || !selectedPO) return;
+    setSubmitting(true);
+    try {
+      const items = effectiveItems.map(i => ({
+        item_code:    i.item_code,
+        vendor_code:  selectedPO.vendor_code,
+        unit:         i.unit,
+        qty_received: Number(itemStatuses[i.item_code].qty_received),
+        po_qty:       i.quantity,
+      }));
+      await api.receivePO({
+        po_id:            selectedPO.id,
+        storage_location: storageLocation || null,
+        remarks:          remarks || null,
+        items,
+      });
+      toast(`Receipt recorded — ${items.length} batch${items.length !== 1 ? "es" : ""} created`);
+      onSuccess();
+    } catch (e) {
+      toast(e.message, "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal"
+        style={{ maxWidth: 920, width: "96%", maxHeight: "92vh", overflowY: "auto" }}>
+
+        {/* Header with title + close button */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <div className="modal-title" style={{ margin: 0 }}>Receive Against PO</div>
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            style={{
+              background: "none", border: "none", cursor: submitting ? "default" : "pointer",
+              fontSize: 20, color: "var(--muted)", lineHeight: 1, padding: "4px 8px",
+              borderRadius: 6,
+            }}
+            title="Close"
+          >✕</button>
+        </div>
+
+        {/* PO selector */}
+        <div className="form-group">
+          <label className="form-label">Purchase Order *</label>
+          <select className="form-select" value={selectedPoId}
+            onChange={e => setSelectedPoId(e.target.value)}>
+            <option value="">Select a PO</option>
+            {sentPOs.map(po => (
+              <option key={po.id} value={po.id}>
+                {po.po_number} — {po.business_name || po.vendor_code}
+                {" "}({po.items.length} item{po.items.length !== 1 ? "s" : ""})
+                {po.status === "short" ? " ⚠ Short" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* PO info strip */}
+        {selectedPO && (
+          <div style={{
+            background: "#eff6ff", border: "1px solid #bfdbfe",
+            borderRadius: 8, padding: "10px 14px", marginBottom: 16,
+            fontSize: 13, display: "flex", gap: 24, flexWrap: "wrap", color: "#1d4ed8",
+          }}>
+            <span><strong>Vendor:</strong> {selectedPO.business_name || selectedPO.vendor_code}</span>
+            <span><strong>PO:</strong> {selectedPO.po_number}</span>
+            <span><strong>{selectedPO.status === "short" ? "Pending Items" : "Items"}:</strong>{" "}
+              {effectiveItems.length}
+            </span>
+            {/* {selectedPO.status === "short" && (
+              <span style={{ color: "#b45309", fontWeight: 700 }}>⚠ Short PO — showing only pending items</span>
+            )} */}
+          </div>
+        )}
+
+        {/* Common fields — filled once, apply to all items */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 8 }}>
+          <div className="form-group">
+            <label className="form-label">Received Date</label>
+            <input className="form-input" type="date" value={receivedDate}
+              onChange={e => setReceivedDate(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Storage Location</label>
+            <input className="form-input" value={storageLocation}
+              onChange={e => setStorageLocation(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Remarks <span style={{ color: "var(--muted)", fontWeight: 400 }}>(optional)</span></label>
+            <input className="form-input" value={remarks}
+              onChange={e => setRemarks(e.target.value)}
+              placeholder="Fill later if needed" />
+          </div>
+        </div>
+
+        {/* Items table — only when a PO is selected */}
+        {selectedPO && (
+          <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", marginTop: 4 }}>
+            {/* Table sub-header */}
+            <div style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              padding: "10px 16px",
+              background: "var(--bg-alt, #f8f9fa)",
+              borderBottom: "1px solid var(--border)",
+            }}>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>
+                {selectedPO.status === "short" ? "Pending Items to Receive" : "Items in this PO"}
+              </span>
+              <span style={{
+                fontSize: 12, fontWeight: 600,
+                color: markedCount === effectiveItems.length && effectiveItems.length > 0 ? "#15803d" : "var(--muted)",
+              }}>
+                {markedCount} / {effectiveItems.length} marked
+              </span>
+            </div>
+
+            <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", minWidth: 640, borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "var(--bg-alt, #f8f9fa)", fontSize: 12, color: "var(--muted)" }}>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>Code</th>
+                  <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>Item Name</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>
+                    {selectedPO.status === "short" ? "Pending Qty" : "PO Qty"}
+                  </th>
+                  <th style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>Action / Qty Received</th>
+                  <th style={{ padding: "8px 12px", textAlign: "center", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {effectiveItems.map(item => {
+                  const s = itemStatuses[item.item_code] || { mode: "pending", qty_received: "" };
+                  const shortVal = Number(s.qty_received);
+                  const shortInvalid = s.mode === "short" && s.qty_received !== "" &&
+                    (shortVal < 1 || shortVal > item.quantity);
+
+                  return (
+                    <tr key={item.item_code} style={{
+                      borderTop: "1px solid var(--border)",
+                      background: s.mode === "full" ? "#f0fdf4" : s.mode === "short" ? "#fffbeb" : "transparent",
+                      transition: "background 0.15s",
+                    }}>
+                      {/* Code */}
+                      <td style={{ padding: "10px 12px" }}>
+                        <span style={{
+                          fontFamily: "monospace", fontWeight: 600, fontSize: 11,
+                          background: "var(--border)", padding: "2px 6px", borderRadius: 4,
+                        }}>{item.item_code}</span>
+                      </td>
+                      {/* Name */}
+                      <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 500 }}>
+                        {item.item_name}
+                      </td>
+                      {/* PO qty */}
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap" }}>
+                        {item.quantity}
+                        <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 4 }}>{item.unit}</span>
+                      </td>
+                      {/* Action cell */}
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        {s.mode === "pending" && (
+                          <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                            <button onClick={() => handleFull(item.item_code)}
+                              style={{
+                                background: "#16a34a", color: "#fff",
+                                border: "none", borderRadius: 6, padding: "5px 14px",
+                                cursor: "pointer", fontWeight: 700, fontSize: 12,
+                              }}>
+                              ✓ Full
+                            </button>
+                            <button onClick={() => handleShort(item.item_code)}
+                              style={{
+                                background: "#fef3c7", color: "#92400e",
+                                border: "1px solid #fcd34d", borderRadius: 6, padding: "5px 12px",
+                                cursor: "pointer", fontWeight: 700, fontSize: 12,
+                              }}>
+                              ⚠ Short
+                            </button>
+                          </div>
+                        )}
+                        {s.mode === "full" && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}>
+                            <span style={{ color: "#16a34a", fontWeight: 700, fontSize: 13 }}>
+                              {item.quantity} {item.unit}
+                            </span>
+                            <button onClick={() => handleUndo(item.item_code)} title="Undo"
+                              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: 15, padding: "2px 4px" }}>
+                              ↩
+                            </button>
+                          </div>
+                        )}
+                        {s.mode === "short" && (
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <input
+                                type="number" min="1" max={item.quantity}
+                                value={s.qty_received}
+                                onChange={e => setItemQty(item.item_code, e.target.value)}
+                                placeholder="Qty rcvd"
+                                style={{
+                                  width: 90, padding: "4px 8px", borderRadius: 6,
+                                  fontSize: 13, fontWeight: 600, textAlign: "center",
+                                  border: `1.5px solid ${shortInvalid ? "#dc2626" : "#fcd34d"}`,
+                                  outline: "none",
+                                }}
+                              />
+                              <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>
+                                of {item.quantity}
+                              </span>
+                              <button onClick={() => handleUndo(item.item_code)} title="Undo"
+                                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: 15, padding: "2px 4px" }}>
+                                ↩
+                              </button>
+                            </div>
+                            {!shortInvalid && s.qty_received !== "" && (
+                              <span style={{ fontSize: 11, color: "#b45309" }}>
+                                Short by {item.quantity - shortVal} {item.unit}
+                              </span>
+                            )}
+                            {shortInvalid && (
+                              <span style={{ fontSize: 11, color: "#dc2626" }}>
+                                Must be 1 – {item.quantity}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      {/* Status badge */}
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        {s.mode === "pending" && (
+                          <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>⬜ Pending</span>
+                        )}
+                        {s.mode === "full" && (
+                          <span style={{
+                            fontSize: 11, fontWeight: 700, color: "#15803d",
+                            background: "#dcfce7", padding: "2px 8px", borderRadius: 10,
+                          }}>✓ Full</span>
+                        )}
+                        {s.mode === "short" && (
+                          <span style={{
+                            fontSize: 11, fontWeight: 700, color: "#92400e",
+                            background: "#fef3c7", padding: "2px 8px", borderRadius: 10,
+                          }}>⚠ Short</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}>
+          <button className="btn btn-ghost" onClick={onClose} disabled={submitting}>Cancel</button>
+          <button
+            className="btn btn-primary"
+            onClick={handleSubmit}
+            disabled={!canSubmit || submitting}
+            style={{ opacity: canSubmit && !submitting ? 1 : 0.5 }}
+          >
+            {submitting
+              ? <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span className="spinner" style={{ width: 14, height: 14 }} />Saving…
+                </span>
+              : selectedPO
+                ? `Submit Receipt (${effectiveItems.length} item${effectiveItems.length !== 1 ? "s" : ""}) →`
+                : "Submit Receipt →"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────
 export default function StockBatches() {
   const { user } = useAuth();
@@ -514,6 +850,7 @@ export default function StockBatches() {
   const [vendors, setVendors] = useState([]);
   const [itemVendors, setItemVendors] = useState([]);
   const [sentPOs, setSentPOs] = useState([]);
+  const [shortPOItems, setShortPOItems] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -524,6 +861,9 @@ export default function StockBatches() {
 
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
+  const [receivePOOpen, setReceivePOOpen]   = useState(false);
+  const [addDropdownOpen, setAddDropdownOpen] = useState(false);
+  const addDropdownRef = useRef(null);
   const [issueTarget, setIssueTarget] = useState(null);
   const [docsTarget, setDocsTarget] = useState(null);
   const [batchDocs, setBatchDocs] = useState({});
@@ -568,9 +908,51 @@ export default function StockBatches() {
     });
   }, [batches]);
 
-  const loadSentPOs = useCallback(() => {
-    api.getSentPOs().then(d => setSentPOs(d.data || [])).catch(() => {});
+  const loadSentPOs = useCallback(async () => {
+    try {
+      const d = await api.getSentPOs();
+      const pos = d.data || [];
+      setSentPOs(pos);
+
+      // Pre-fetch pending items for all Short POs in parallel — zero lag when modal opens
+      const shortPOs = pos.filter(p => p.status === "short");
+      if (shortPOs.length === 0) { setShortPOItems({}); return; }
+
+      const results = await Promise.all(
+        shortPOs.map(p =>
+          api.getPOItemsStatus(p.id)
+            .then(data => ({ id: p.id, items: data.items || [] }))
+            .catch(() => ({ id: p.id, items: [] }))
+        )
+      );
+
+      const map = {};
+      for (const { id, items } of results) {
+        map[id] = items
+          .filter(i => Number(i.pending_qty) > 0)
+          .map(i => ({
+            item_code: i.item_code,
+            item_name: i.item_name,
+            quantity:  Number(i.pending_qty),
+            unit:      i.unit,
+          }));
+      }
+      setShortPOItems(map);
+    } catch (e) {
+      // silently ignore — sentPOs already set above if it succeeded
+    }
   }, []);
+
+  // Close the Add Receipt dropdown when clicking outside it
+  useEffect(() => {
+    if (!addDropdownOpen) return;
+    const handler = (e) => {
+      if (addDropdownRef.current && !addDropdownRef.current.contains(e.target))
+        setAddDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [addDropdownOpen]);
 
   useEffect(() => {
     api.getItems().then(d => setItems(d.data)).catch(() => { });
@@ -702,9 +1084,57 @@ export default function StockBatches() {
             Summary View
           </button>
           {isAdmin && view === "batches" && (
-            <button className="btn btn-primary" onClick={() => { setEditTarget(null); setShowForm(true); }}>
-              + Record Receipt
-            </button>
+            <div ref={addDropdownRef} style={{ position: "relative" }}>
+              <div style={{ display: "flex" }}>
+                <button
+                  className="btn btn-primary"
+                  style={{ borderRadius: "8px 0 0 8px", borderRight: "1px solid rgba(255,255,255,0.3)" }}
+                  onClick={() => { setReceivePOOpen(true); setAddDropdownOpen(false); }}
+                >
+                  + Add Receipt
+                </button>
+                <button
+                  className="btn btn-primary"
+                  style={{ borderRadius: "0 8px 8px 0", padding: "0 11px", fontSize: 12 }}
+                  onClick={() => setAddDropdownOpen(o => !o)}
+                >
+                  ▾
+                </button>
+              </div>
+              {addDropdownOpen && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 6px)", right: 0,
+                  background: "var(--surface)", border: "1px solid var(--border)",
+                  borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                  overflow: "hidden", minWidth: 220, zIndex: 200,
+                }}>
+                  <button
+                    onClick={() => { setReceivePOOpen(true); setAddDropdownOpen(false); }}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      width: "100%", padding: "11px 16px",
+                      background: "#eff6ff", border: "none", cursor: "pointer",
+                      borderBottom: "1px solid var(--border)",
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: 13, color: "#1d4ed8" }}>● Receive Against PO</span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, color: "#1d4ed8",
+                      background: "#dbeafe", padding: "2px 7px", borderRadius: 8,
+                    }}>Default</span>
+                  </button>
+                  <button
+                    onClick={() => { setEditTarget(null); setShowForm(true); setAddDropdownOpen(false); }}
+                    style={{
+                      display: "flex", width: "100%", padding: "11px 16px",
+                      background: "transparent", border: "none", cursor: "pointer",
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, fontSize: 13, color: "var(--text)" }}>Manual Entry</span>
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -810,7 +1240,7 @@ export default function StockBatches() {
               <div>No stock batches found</div>
               {isAdmin && (
                 <button className="btn btn-primary" style={{ marginTop: 16 }}
-                  onClick={() => { setEditTarget(null); setShowForm(true); }}>
+                  onClick={() => setReceivePOOpen(true)}>
                   + Record First Receipt
                 </button>
               )}
@@ -973,6 +1403,16 @@ export default function StockBatches() {
       )}
 
       {/* ── Modals ── */}
+      {receivePOOpen && (
+        <ReceivePOModal
+          sentPOs={sentPOs}
+          shortPOItems={shortPOItems}
+          onClose={() => setReceivePOOpen(false)}
+          onSuccess={() => { setReceivePOOpen(false); load(true); loadSummary(); loadSentPOs(); }}
+          toast={toast}
+        />
+      )}
+
       {showForm && (
         <BatchFormModal
           initial={editTarget ? {

@@ -248,6 +248,12 @@ async function initSchema() {
       WHERE po_number IS NULL
     `);
 
+    // Add 'short' status to purchase_orders ENUM (safe to re-run)
+    await conn.query(`
+      ALTER TABLE purchase_orders
+      MODIFY COLUMN status ENUM('draft','sent','received','cancelled','short') NOT NULL DEFAULT 'draft'
+    `);
+
     console.log("✅ MariaDB schema ready");
   } catch (err) {
     console.error("❌ MariaDB schema init failed:", err.message);

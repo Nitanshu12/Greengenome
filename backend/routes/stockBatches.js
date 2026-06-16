@@ -161,6 +161,66 @@ router.post("/", ...adminOnly, async (req, res) => {
   }
 });
 
+// ── POST /api/stock-batches/receive-po ───────────────────────────
+// Bulk receive against a PO: creates one batch per item, marks PO received or short.
+router.post("/receive-po", ...adminOnly, async (req, res) => {
+  const { po_id, storage_location, remarks, items } = req.body;
+
+  if (!po_id) return res.status(400).json({ error: "po_id is required" });
+  if (!Array.isArray(items) || items.length === 0)
+    return res.status(400).json({ error: "At least one item is required" });
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.query("START TRANSACTION");
+
+    const [[po]] = await conn.query(
+      "SELECT id, vendor_code, status FROM purchase_orders WHERE id = ?",
+      [po_id]
+    );
+    if (!po) {
+      await conn.query("ROLLBACK");
+      return res.status(404).json({ error: "PO not found" });
+    }
+    if (!["sent", "short"].includes(po.status)) {
+      await conn.query("ROLLBACK");
+      return res.status(400).json({ error: `PO is already ${po.status}` });
+    }
+
+    const batchIds = [];
+    let anyShort = false;
+
+    for (const item of items) {
+      const { item_code, vendor_code, unit, qty_received, po_qty } = item;
+      if (!item_code || !qty_received || !unit) continue;
+      if (Number(qty_received) < Number(po_qty)) anyShort = true;
+
+      const [result] = await conn.query(
+        `INSERT INTO stock_batches
+           (item_code, vendor_code, qty_received, unit, storage_location, remarks, po_id, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'active')`,
+        [item_code, vendor_code || null, Number(qty_received), unit,
+         storage_location || null, remarks || null, po_id]
+      );
+      batchIds.push(result.insertId);
+    }
+
+    const newStatus = anyShort ? "short" : "received";
+    await conn.query(
+      "UPDATE purchase_orders SET status = ? WHERE id = ?",
+      [newStatus, po_id]
+    );
+
+    await conn.query("COMMIT");
+    res.status(201).json({ batches_created: batchIds.length, batch_ids: batchIds, po_status: newStatus });
+  } catch (err) {
+    await conn.query("ROLLBACK");
+    res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // ── PUT /api/stock-batches/:id ────────────────────────────────────
 // Update non-quantity fields: location, status, remarks.
 // qty_issued is updated separately via the issue-stock endpoint below.

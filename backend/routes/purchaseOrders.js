@@ -326,7 +326,7 @@ router.get("/sent", requireLogin, async (req, res) => {
       FROM purchase_orders po
       LEFT JOIN vendors v ON v.vendor_code = po.vendor_code
       JOIN purchase_order_items poi ON poi.po_id = po.id
-      WHERE po.status = 'sent'
+      WHERE po.status IN ('sent', 'short')
       ORDER BY po.id DESC, poi.id ASC
     `);
     const posMap = new Map();
@@ -344,6 +344,34 @@ router.get("/sent", requireLogin, async (req, res) => {
       });
     }
     res.json({ data: Array.from(posMap.values()) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/purchase-orders/:id/items-status  — ordered vs received per item for a PO
+router.get("/:id/items-status", requireLogin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+    const [rows] = await pool.query(`
+      SELECT
+        poi.item_code,
+        poi.item_name,
+        poi.quantity    AS ordered_qty,
+        poi.unit,
+        COALESCE(SUM(sb.qty_received), 0)                                    AS received_qty,
+        GREATEST(0, poi.quantity - COALESCE(SUM(sb.qty_received), 0))        AS pending_qty
+      FROM purchase_order_items poi
+      LEFT JOIN stock_batches sb
+        ON sb.po_id = ? AND sb.item_code = poi.item_code
+      WHERE poi.po_id = ?
+      GROUP BY poi.item_code, poi.item_name, poi.quantity, poi.unit
+      ORDER BY poi.id ASC
+    `, [id, id]);
+
+    res.json({ items: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -373,7 +401,7 @@ router.get("/:id", requireLogin, async (req, res) => {
 
 // PATCH /api/purchase-orders/:id/status  — update PO status
 router.patch("/:id/status", ...adminOnly, async (req, res) => {
-  const VALID = ["draft", "sent", "received", "cancelled"];
+  const VALID = ["draft", "sent", "received", "cancelled", "short"];
   const { status } = req.body;
   if (!VALID.includes(status))
     return res.status(400).json({ error: `status must be one of: ${VALID.join(", ")}` });
