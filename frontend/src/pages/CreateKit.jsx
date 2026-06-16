@@ -734,8 +734,8 @@ export default function CreateKit() {
                         {det.allocated.length} items
                       </span>
                     </div>
-                    <div className="table-wrap" style={{ margin: 0 }}>
-                      <table>
+                    <div className="table-wrap" style={{ margin: 0, overflowX: "auto" }}>
+                      <table style={{ minWidth: 520 }}>
                         <thead>
                           <tr>
                             <th>Item Code</th>
@@ -798,8 +798,8 @@ export default function CreateKit() {
                         {det.shortfalls.length} items
                       </span>
                     </div>
-                    <div className="table-wrap" style={{ margin: 0 }}>
-                      <table>
+                    <div className="table-wrap" style={{ margin: 0, overflowX: "auto" }}>
+                      <table style={{ minWidth: 460 }}>
                         <thead>
                           <tr>
                             <th>Item Code</th>
@@ -876,7 +876,7 @@ export default function CreateKit() {
     };
 
     return (
-      <div style={{ flex: 1, minWidth: 0, zoom: 0.85 }}>
+      <div style={{ flex: "2 1 480px", minWidth: 0 }}>
         <div style={{
           background: "var(--surface)",
           border: `1.5px solid ${stillShort.length === 0 ? "#86efac" : "#fca5a5"}`,
@@ -950,7 +950,7 @@ export default function CreateKit() {
               background: "#fffbeb",
               borderBottom: "1px solid #fde68a",
               fontSize: 12, fontWeight: 600,
-              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap",
             }}>
               <span style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 {stillShort.length > 0 && (
@@ -987,15 +987,23 @@ export default function CreateKit() {
               </div>
             ) : (
               <div className="table-wrap" style={{ margin: 0 }}>
-                <table style={{ fontSize: 13 }}>
+                <table style={{ fontSize: 12, width: "100%", tableLayout: "fixed", borderCollapse: "collapse" }}>
+                  <colgroup>
+                    <col style={{ width: 95 }} />
+                    <col />
+                    <col style={{ width: 48 }} />
+                    <col style={{ width: 58 }} />
+                    <col style={{ width: 78 }} />
+                    <col style={{ width: 52 }} />
+                  </colgroup>
                   <thead>
                     <tr>
-                      <th style={{ padding: "8px 10px" }}>Item Code</th>
-                      <th style={{ padding: "8px 10px" }}>Item Name</th>
-                      <th style={{ textAlign: "right", padding: "8px 10px" }}>Need</th>
-                      <th style={{ textAlign: "right", padding: "8px 10px" }}>In Stock Now</th>
-                      <th style={{ textAlign: "right", padding: "8px 10px" }}>Still Short</th>
-                      <th style={{ padding: "8px 10px" }}></th>
+                      <th style={{ padding: "5px 8px" }}>Code</th>
+                      <th style={{ padding: "5px 8px" }}>Item Name</th>
+                      <th style={{ textAlign: "right", padding: "5px 8px" }}>Need</th>
+                      <th style={{ textAlign: "right", padding: "5px 8px" }}>In Stock</th>
+                      <th style={{ textAlign: "right", padding: "5px 8px" }}>Short</th>
+                      <th style={{ padding: "5px 4px" }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1007,50 +1015,52 @@ export default function CreateKit() {
                           background: row.now_coverable ? "#f0fdf4" : undefined,
                         }}
                       >
-                        <td style={{ padding: "6px 10px" }}>
+                        <td style={{ padding: "5px 8px" }}>
                           <span style={{
-                            fontFamily: "monospace", fontWeight: 600, fontSize: 11,
+                            fontFamily: "monospace", fontWeight: 600, fontSize: 10,
                             background: row.now_coverable ? "#dcfce7" : "#fee2e2",
                             color: row.now_coverable ? "#15803d" : "#dc2626",
-                            padding: "2px 6px", borderRadius: 4,
+                            padding: "1px 4px", borderRadius: 3,
+                            display: "inline-block", maxWidth: "100%",
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                           }}>
                             {row.item_code}
                           </span>
                         </td>
-                        <td style={{ padding: "6px 10px", fontWeight: 500, maxWidth: 180 }}>
+                        <td style={{ padding: "5px 8px", fontWeight: 500, wordBreak: "break-word", lineHeight: 1.3 }}>
                           {row.item_name}
                         </td>
-                        <td style={{ textAlign: "right", padding: "6px 10px" }}>
+                        <td style={{ textAlign: "right", padding: "5px 8px", whiteSpace: "nowrap" }}>
                           {Number(row.shortfall_qty).toLocaleString("en-IN")}
                         </td>
-                        <td style={{ textAlign: "right", padding: "6px 10px", fontWeight: 600,
+                        <td style={{ textAlign: "right", padding: "5px 8px", fontWeight: 600, whiteSpace: "nowrap",
                           color: row.now_coverable ? "#15803d" : (row.current_available > 0 ? "#b45309" : "var(--muted)"),
                         }}>
                           {Number(row.current_available).toLocaleString("en-IN")}
                         </td>
-                        <td style={{ textAlign: "right", padding: "6px 10px" }}>
+                        <td style={{ textAlign: "right", padding: "5px 4px" }}>
                           {row.now_coverable ? (
                             <span style={{
                               fontWeight: 700, color: "#15803d", background: "#dcfce7",
-                              padding: "2px 7px", borderRadius: 8, fontSize: 11,
+                              padding: "1px 5px", borderRadius: 6, fontSize: 10, whiteSpace: "nowrap",
                             }}>
-                              Ready ✓
+                              ✓ Ready
                             </span>
                           ) : (
                             <span style={{
                               fontWeight: 700, color: "#dc2626", background: "#fee2e2",
-                              padding: "2px 7px", borderRadius: 8, fontSize: 11,
+                              padding: "1px 5px", borderRadius: 6, fontSize: 10, whiteSpace: "nowrap",
                             }}>
                               −{Number(row.still_needed).toLocaleString("en-IN")}
                             </span>
                           )}
                         </td>
-                        <td style={{ padding: "6px 10px" }}>
+                        <td style={{ padding: "5px 4px", textAlign: "center" }}>
                           {!row.now_coverable && (
                             <button
                               className="btn btn-ghost btn-sm"
                               onClick={() => setPoTarget(row)}
-                              style={{ fontSize: 11, padding: "2px 8px", whiteSpace: "nowrap" }}
+                              style={{ fontSize: 10, padding: "2px 6px", whiteSpace: "nowrap" }}
                             >
                               Order
                             </button>
@@ -1111,8 +1121,8 @@ export default function CreateKit() {
               No kits assembled yet
             </div>
           ) : (
-            <div className="table-wrap" style={{ margin: 0 }}>
-              <table>
+            <div className="table-wrap" style={{ margin: 0, overflowX: "auto" }}>
+              <table style={{ minWidth: 600 }}>
                 <thead>
                   <tr>
                     <th>Kit ID</th>
@@ -1215,9 +1225,10 @@ export default function CreateKit() {
           display: "flex",
           gap: 24,
           alignItems: "flex-start",
+          flexWrap: "wrap",
         }}>
           {/* Left: form */}
-          <div style={{ flex: "0 0 auto", width: hasPending ? 460 : 560 }}>
+          <div style={{ flex: "1 1 340px", maxWidth: 520, minWidth: 0 }}>
             <div style={{
               background: "var(--surface)",
               border: "1px solid var(--border)",
@@ -1383,8 +1394,8 @@ export default function CreateKit() {
 
           {allocatedOpen && (
             <div style={{ border: "1px solid #86efac", borderTop: "none", borderRadius: "0 0 10px 10px", overflow: "hidden" }}>
-              <div className="table-wrap" style={{ margin: 0 }}>
-                <table>
+              <div className="table-wrap" style={{ margin: 0, overflowX: "auto" }}>
+                <table style={{ minWidth: 480 }}>
                   <thead>
                     <tr>
                       <th>Item Code</th>
@@ -1448,6 +1459,7 @@ export default function CreateKit() {
               borderRadius: shortfallsOpen ? "10px 10px 0 0" : 10,
               cursor: "pointer",
               textAlign: "left",
+              flexWrap: "wrap",
             }}
           >
             <div style={{ width: 4, height: 20, background: "#dc2626", borderRadius: 2, flexShrink: 0 }} />
@@ -1486,8 +1498,8 @@ export default function CreateKit() {
 
           {shortfallsOpen && (
             <div style={{ border: "1px solid #fca5a5", borderTop: "none", borderRadius: "0 0 10px 10px", overflow: "hidden" }}>
-              <div className="table-wrap" style={{ margin: 0 }}>
-                <table>
+              <div className="table-wrap" style={{ margin: 0, overflowX: "auto" }}>
+                <table style={{ minWidth: 520 }}>
                   <thead>
                     <tr>
                       <th>Item Code</th>
