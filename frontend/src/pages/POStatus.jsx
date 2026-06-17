@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment } from "react";
 import { api, downloadBlob } from "../api";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../hooks/useAuth";
+import BatchFormModal from "../components/BatchFormModal";
 
 const STATUS_STYLE = {
   sent:     { color: "#1d4ed8", bg: "#dbeafe", label: "Open"   },
@@ -23,12 +24,52 @@ export default function POStatus() {
   const [poItemsCache, setPoItemsCache] = useState({});
   const [loadingItemsId, setLoadingItemsId] = useState(null);
 
+  const [items, setItems]             = useState([]);
+  const [vendors, setVendors]         = useState([]);
+  const [itemVendors, setItemVendors] = useState([]);
+  const [editingBatch, setEditingBatch] = useState(null); // { item_code, batch: {...} }
+  const [savingBatch, setSavingBatch]   = useState(false);
+
   useEffect(() => {
     api.getPOs()
       .then(d => setPOs(d.data || []))
       .catch(e => toast(e.message, "error"))
       .finally(() => setLoading(false));
+    // Needed as props for BatchFormModal (Item/Vendor dropdowns render even when disabled)
+    api.getItems().then(d => setItems(d.data || [])).catch(() => {});
+    api.getVendors().then(d => setVendors(d.data || [])).catch(() => {});
+    api.getItemVendors().then(d => setItemVendors(d.data || [])).catch(() => {});
   }, []);
+
+  const refreshPoItems = async (poId) => {
+    try {
+      const data = await api.getPOItemsStatus(poId);
+      setPoItemsCache(prev => ({ ...prev, [poId]: data.items || [] }));
+    } catch (e) {
+      toast(e.message, "error");
+    }
+  };
+
+  const handleSaveBatch = async (form) => {
+    setSavingBatch(true);
+    try {
+      await api.updateStockBatch(editingBatch.batch.batch_id, {
+        storage_location: form.storage_location,
+        status: form.status,
+        remarks: form.remarks,
+        supplier_batch_no: form.supplier_batch_no,
+        mfg_date: form.mfg_date,
+        expiry_date: form.expiry_date,
+      });
+      toast("Batch updated");
+      setEditingBatch(null);
+      if (expandedPoId) refreshPoItems(expandedPoId);
+    } catch (e) {
+      toast(e.message, "error");
+    } finally {
+      setSavingBatch(false);
+    }
+  };
 
   const handleDownload = async (po) => {
     setDownloading(po.id);
@@ -218,12 +259,14 @@ export default function POStatus() {
                                       <th style={{ padding: "7px 12px", textAlign: "right", fontWeight: 600, fontSize: 11, color: "var(--muted)", border: "1px solid var(--border)" }}>Received</th>
                                       <th style={{ padding: "7px 12px", textAlign: "right", fontWeight: 600, fontSize: 11, color: "var(--muted)", border: "1px solid var(--border)" }}>Pending</th>
                                       <th style={{ padding: "7px 12px", textAlign: "center", fontWeight: 600, fontSize: 11, color: "var(--muted)", border: "1px solid var(--border)" }}>Status</th>
+                                      <th style={{ padding: "7px 12px", textAlign: "center", fontWeight: 600, fontSize: 11, color: "var(--muted)", border: "1px solid var(--border)" }}></th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {cachedItems.map(item => {
                                       const isFull    = Number(item.pending_qty) === 0;
                                       const rowBg     = isFull ? "#f0fdf4" : "#fffbeb";
+                                      const latestBatch = item.batches?.[0] || null;
                                       return (
                                         <tr key={item.item_code} style={{ background: rowBg }}>
                                           <td style={{ padding: "8px 12px", border: "1px solid var(--border)" }}>
@@ -255,6 +298,19 @@ export default function POStatus() {
                                               </span>
                                             )}
                                           </td>
+                                          <td style={{ padding: "8px 12px", border: "1px solid var(--border)", textAlign: "center" }}>
+                                            {latestBatch ? (
+                                              <button
+                                                className="btn btn-ghost btn-sm"
+                                                style={{ fontSize: 11, whiteSpace: "nowrap" }}
+                                                onClick={() => setEditingBatch({ item_code: item.item_code, batch: latestBatch })}
+                                              >
+                                                ✎ Edit
+                                              </button>
+                                            ) : (
+                                              <span style={{ color: "var(--muted)", fontSize: 11 }}>—</span>
+                                            )}
+                                          </td>
                                         </tr>
                                       );
                                     })}
@@ -284,6 +340,30 @@ export default function POStatus() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {editingBatch && (
+        <BatchFormModal
+          initial={{
+            item_code: editingBatch.batch.item_code ?? "",
+            vendor_code: editingBatch.batch.vendor_code ?? "",
+            supplier_batch_no: editingBatch.batch.supplier_batch_no ?? "",
+            mfg_date: editingBatch.batch.mfg_date ? editingBatch.batch.mfg_date.slice(0, 10) : "",
+            expiry_date: editingBatch.batch.expiry_date ? editingBatch.batch.expiry_date.slice(0, 10) : "",
+            qty_received: editingBatch.batch.qty_received ?? "",
+            unit: editingBatch.batch.unit ?? "",
+            storage_location: editingBatch.batch.storage_location ?? "",
+            status: editingBatch.batch.status ?? "active",
+            remarks: editingBatch.batch.remarks ?? "",
+          }}
+          items={items}
+          vendors={vendors}
+          itemVendors={itemVendors}
+          sentPOs={[]}
+          onSave={handleSaveBatch}
+          onClose={() => setEditingBatch(null)}
+          saving={savingBatch}
+        />
       )}
     </div>
   );

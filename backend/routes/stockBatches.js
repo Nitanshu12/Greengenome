@@ -232,32 +232,41 @@ router.post("/receive-po", ...adminOnly, async (req, res) => {
 });
 
 // ── PUT /api/stock-batches/:id ────────────────────────────────────
-// Update non-quantity fields: location, status, remarks.
+// Update non-quantity fields: location, status, remarks, dates, supplier batch no.
 // qty_issued is updated separately via the issue-stock endpoint below.
 router.put("/:id", ...adminOnly, async (req, res) => {
   try {
-    const { storage_location, status, remarks, expiry_date } = req.body;
+    const { storage_location, status, remarks, mfg_date, expiry_date, supplier_batch_no } = req.body;
 
     const conn = await pool.getConnection();
     try {
-      const [result] = await conn.query(
+      const [[existing]] = await conn.query(
+        "SELECT batch_id FROM stock_batches WHERE batch_id = ?",
+        [req.params.id]
+      );
+      if (!existing) {
+        return res.status(404).json({ error: "Batch not found" });
+      }
+
+      await conn.query(
         `UPDATE stock_batches
-         SET storage_location = COALESCE(?, storage_location),
-             status           = COALESCE(?, status),
-             remarks          = COALESCE(?, remarks),
-             expiry_date      = ?
+         SET storage_location  = COALESCE(?, storage_location),
+             status            = COALESCE(?, status),
+             remarks           = COALESCE(?, remarks),
+             supplier_batch_no = COALESCE(?, supplier_batch_no),
+             mfg_date          = ?,
+             expiry_date       = ?
          WHERE batch_id = ?`,
         [
           storage_location ?? null,
           status ?? null,
           remarks ?? null,
+          supplier_batch_no ?? null,
+          mfg_date || null,
           expiry_date || null,
           req.params.id,
         ]
       );
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ error: "Batch not found" });
-      }
       res.json({ msg: "Batch updated" });
     } finally {
       conn.release();
