@@ -766,6 +766,7 @@ export default function StockBatches() {
           supplier_batch_no: form.supplier_batch_no,
           mfg_date: form.mfg_date,
           expiry_date: form.expiry_date,
+          supply_date: form.supply_date,
         });
         toast("Batch updated");
       } else {
@@ -1048,6 +1049,7 @@ export default function StockBatches() {
                     <th style={{ width: "7%" }}>Vendor</th>
                     <th style={{ width: "6%" }}>Mfg Date</th>
                     <th style={{ width: "7%" }}>Expiry Date</th>
+                    <th style={{ width: "6%" }}>Supply Date</th>
                     <th style={{ width: "5%", textAlign: "right" }}>Received</th>
                     <th style={{ width: "5%", textAlign: "right" }}>Issued</th>
                     <th style={{ width: "5%", textAlign: "right" }}>In Hand</th>
@@ -1098,6 +1100,10 @@ export default function StockBatches() {
                         <td style={{ whiteSpace: "nowrap" }}>
                           {formatDateMMM_YY(b.expiry_date)}
                           {expiryBadge(b.expiry_date)}
+                        </td>
+                        {/* Supply Date */}
+                        <td style={{ whiteSpace: "nowrap", fontSize: 12, color: "var(--muted)" }}>
+                          {formatDateMMM_YY(b.supply_date)}
                         </td>
                         <td style={{ textAlign: "right", color: "var(--muted)" }}>
                           {b.qty_received} {b.unit}
@@ -1213,6 +1219,7 @@ export default function StockBatches() {
             supplier_batch_no: editTarget.supplier_batch_no ?? "",
             mfg_date: editTarget.mfg_date ? editTarget.mfg_date.slice(0, 10) : "",
             expiry_date: editTarget.expiry_date ? editTarget.expiry_date.slice(0, 10) : "",
+            supply_date: editTarget.supply_date ? editTarget.supply_date.slice(0, 10) : "",
             qty_received: editTarget.qty_received ?? "",
             unit: editTarget.unit ?? "",
             storage_location: editTarget.storage_location ?? "",

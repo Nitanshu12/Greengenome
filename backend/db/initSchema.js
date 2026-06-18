@@ -212,6 +212,9 @@ async function initSchema() {
       if (!e.message?.includes("Duplicate") && !e.message?.includes("already exists")) throw e;
     }
 
+    // Date the batch was actually supplied/delivered (distinct from mfg_date) — used later for warranty calc
+    await conn.query(`ALTER TABLE stock_batches ADD COLUMN IF NOT EXISTS supply_date DATE DEFAULT NULL`);
+
     await conn.query(`
       CREATE TABLE IF NOT EXISTS assembled_kits (
         kit_id       INT AUTO_INCREMENT PRIMARY KEY,

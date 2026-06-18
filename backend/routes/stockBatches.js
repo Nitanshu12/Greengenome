@@ -55,6 +55,7 @@ router.get("/", requireLogin, async (req, res) => {
            v.business_name     AS vendor_name,
            sb.mfg_date,
            sb.expiry_date,
+           sb.supply_date,
            sb.qty_received,
            sb.qty_issued,
            (sb.qty_received - sb.qty_issued) AS qty_in_hand,
@@ -90,6 +91,7 @@ router.post("/", ...adminOnly, async (req, res) => {
       vendor_code,
       mfg_date,
       expiry_date,
+      supply_date,
       qty_received,
       unit,
       storage_location,
@@ -113,15 +115,16 @@ router.post("/", ...adminOnly, async (req, res) => {
     try {
       const [result] = await conn.query(
         `INSERT INTO stock_batches
-           (supplier_batch_no, item_code, vendor_code, mfg_date, expiry_date,
+           (supplier_batch_no, item_code, vendor_code, mfg_date, expiry_date, supply_date,
             qty_received, unit, storage_location, status, remarks, po_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           supplier_batch_no || null,
           item_code,
           vendor_code || null,
           mfg_date || null,
           expiry_date || null,
+          supply_date || null,
           qty_received,
           unit,
           storage_location || null,
@@ -236,7 +239,7 @@ router.post("/receive-po", ...adminOnly, async (req, res) => {
 // qty_issued is updated separately via the issue-stock endpoint below.
 router.put("/:id", ...adminOnly, async (req, res) => {
   try {
-    const { storage_location, status, remarks, mfg_date, expiry_date, supplier_batch_no } = req.body;
+    const { storage_location, status, remarks, mfg_date, expiry_date, supply_date, supplier_batch_no } = req.body;
 
     const conn = await pool.getConnection();
     try {
@@ -255,7 +258,8 @@ router.put("/:id", ...adminOnly, async (req, res) => {
              remarks           = COALESCE(?, remarks),
              supplier_batch_no = COALESCE(?, supplier_batch_no),
              mfg_date          = ?,
-             expiry_date       = ?
+             expiry_date       = ?,
+             supply_date       = ?
          WHERE batch_id = ?`,
         [
           storage_location ?? null,
@@ -264,6 +268,7 @@ router.put("/:id", ...adminOnly, async (req, res) => {
           supplier_batch_no ?? null,
           mfg_date || null,
           expiry_date || null,
+          supply_date || null,
           req.params.id,
         ]
       );

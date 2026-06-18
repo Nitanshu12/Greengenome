@@ -5,7 +5,7 @@ export const STATUSES = ["active", "expired", "quarantined", "returned"];
 
 export const EMPTY_BATCH_FORM = {
   supplier_batch_no: "", item_code: "", vendor_code: "",
-  mfg_date: "", expiry_date: "", qty_received: "",
+  mfg_date: "", expiry_date: "", supply_date: "", qty_received: "",
   unit: "", storage_location: "", status: "active", remarks: "",
 };
 
@@ -185,6 +185,15 @@ export default function BatchFormModal({ initial, items, vendors, itemVendors, s
             <input className="form-input" type="date" value={form.expiry_date}
               onChange={e => set("expiry_date", e.target.value)} />
           </div>
+        </div>
+
+        {/* Supply Date */}
+        <div className="form-group">
+          <label className="form-label">
+            Supply Date
+          </label>
+          <input className="form-input" type="date" value={form.supply_date}
+            onChange={e => set("supply_date", e.target.value)} />
         </div>
 
         {/* Qty + Status */}

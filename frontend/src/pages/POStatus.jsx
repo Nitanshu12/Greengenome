@@ -60,6 +60,7 @@ export default function POStatus() {
         supplier_batch_no: form.supplier_batch_no,
         mfg_date: form.mfg_date,
         expiry_date: form.expiry_date,
+        supply_date: form.supply_date,
       });
       toast("Batch updated");
       setEditingBatch(null);
@@ -350,6 +351,7 @@ export default function POStatus() {
             supplier_batch_no: editingBatch.batch.supplier_batch_no ?? "",
             mfg_date: editingBatch.batch.mfg_date ? editingBatch.batch.mfg_date.slice(0, 10) : "",
             expiry_date: editingBatch.batch.expiry_date ? editingBatch.batch.expiry_date.slice(0, 10) : "",
+            supply_date: editingBatch.batch.supply_date ? editingBatch.batch.supply_date.slice(0, 10) : "",
             qty_received: editingBatch.batch.qty_received ?? "",
             unit: editingBatch.batch.unit ?? "",
             storage_location: editingBatch.batch.storage_location ?? "",

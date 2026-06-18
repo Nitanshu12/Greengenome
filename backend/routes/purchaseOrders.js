@@ -374,7 +374,7 @@ router.get("/:id/items-status", requireLogin, async (req, res) => {
     // Fetch the actual stock_batches rows so the frontend can edit them directly
     // (the aggregate query above only has totals, not a row to point an edit form at).
     const [batches] = await pool.query(
-      `SELECT batch_id, item_code, vendor_code, supplier_batch_no, mfg_date, expiry_date,
+      `SELECT batch_id, item_code, vendor_code, supplier_batch_no, mfg_date, expiry_date, supply_date,
               qty_received, unit, storage_location, status, remarks, created_at
        FROM stock_batches WHERE po_id = ? ORDER BY created_at DESC`,
       [id]
