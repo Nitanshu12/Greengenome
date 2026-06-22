@@ -177,7 +177,7 @@ export default function LandingPage() {
           <a href="#home">Home</a>
           <a href="#about">About Us</a>
           <a href="#services">Services</a>
-          <a href="#cube">Cube</a>
+          <Link to="/cube">Cube</Link>
           <a href="#contact">Contact Us</a>
         </div>
         <div className={`landing-menu${menuOpen ? " active" : ""}`}>
