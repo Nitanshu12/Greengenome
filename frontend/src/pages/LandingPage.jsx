@@ -79,8 +79,6 @@ export default function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalData, setModalData] = useState(null);
-  const [formData, setFormData] = useState({ name: "", email: "", subject: "", message: "" });
-  const [formMsg, setFormMsg] = useState("");
 
   // Initialize Leaflet maps once on mount
   useEffect(() => {
@@ -141,30 +139,6 @@ export default function LandingPage() {
     setModalOpen(true);
   }
 
-  function handleFormChange(e) {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  }
-
-  async function handleContactSubmit(e) {
-    e.preventDefault();
-    try {
-      const res = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const result = await res.json();
-      if (res.ok) {
-        setFormMsg("✅ Message sent successfully!");
-        setFormData({ name: "", email: "", subject: "", message: "" });
-      } else {
-        setFormMsg("❌ " + result.error);
-      }
-    } catch {
-      setFormMsg("❌ Server error");
-    }
-  }
-
   return (
     <div className="landing-page">
 
@@ -175,10 +149,10 @@ export default function LandingPage() {
         </div>
         <div className={`landing-menu${menuOpen ? " active" : ""}`}>
           <a href="#home">Home</a>
-          <a href="#about">About Us</a>
-          <a href="#services">Services</a>
+          <Link to="/about">About Us</Link>
+          <Link to="/services">Services</Link>
           <Link to="/cube">Cube</Link>
-          <a href="#contact">Contact Us</a>
+          <Link to="/contact">Contact Us</Link>
         </div>
         <div className={`landing-menu${menuOpen ? " active" : ""}`}>
           <Link to="/login">Login</Link>
@@ -436,90 +410,6 @@ export default function LandingPage() {
           {["/images/a1.png", "/images/a2.png", "/images/a3.png", "/images/a4.png"].map((src, i) => (
             <img key={i} src={src} className="gallery-img" alt={`gallery-${i}`} />
           ))}
-        </div>
-      </section>
-
-      {/* ===== CONTACT ===== */}
-      <section id="contact" className="landing-section">
-        <div className="container">
-          <div className="section-title">
-            <h2>CONTACT US</h2>
-          </div>
-          <div className="contact-wrapper">
-
-            {/* Left — contact info */}
-            <div className="contact-info">
-              <div className="info-box">
-                <div className="info-icon">📍</div>
-                <div>
-                  <h4>Address</h4>
-                  <p>
-                    Green Genome India Pvt Ltd,
-                    <br />
-                    E-27 Lower Ground, Naraina Vihar,
-                    <br />
-                    New Delhi, India
-                  </p>
-                </div>
-              </div>
-              <div className="info-box">
-                <div className="info-icon">📞</div>
-                <div>
-                  <h4>Call Us</h4>
-                  <p>+91 9212142739</p>
-                </div>
-              </div>
-              <div className="info-box">
-                <div className="info-icon">✉️</div>
-                <div>
-                  <h4>Email Us</h4>
-                  <p>info@greengenome.in</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Right — contact form */}
-            <div className="contact-form">
-              <form onSubmit={handleContactSubmit}>
-                <div className="form-row">
-                  <input
-                    type="text"
-                    name="name"
-                    placeholder="Your Name"
-                    value={formData.name}
-                    onChange={handleFormChange}
-                    required
-                  />
-                  <input
-                    type="email"
-                    name="email"
-                    placeholder="Your Email"
-                    value={formData.email}
-                    onChange={handleFormChange}
-                    required
-                  />
-                </div>
-                <input
-                  type="text"
-                  name="subject"
-                  placeholder="Subject"
-                  value={formData.subject}
-                  onChange={handleFormChange}
-                  required
-                />
-                <textarea
-                  name="message"
-                  rows={6}
-                  placeholder="Message"
-                  value={formData.message}
-                  onChange={handleFormChange}
-                  required
-                />
-                <button type="submit">Send Message</button>
-              </form>
-              {formMsg && <p className="form-message">{formMsg}</p>}
-            </div>
-          </div>
         </div>
       </section>
 

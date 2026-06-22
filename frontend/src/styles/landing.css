@@ -13,6 +13,17 @@
   animation: landingGradientBG 12s ease infinite;
   line-height: 1.6;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.landing-page > .landing-navbar,
+.landing-page > .landing-footer {
+  flex: 0 0 auto;
+}
+
+.landing-page > *:not(.landing-navbar):not(.landing-footer) {
+  flex: 1 0 auto;
 }
 
 @keyframes landingGradientBG {
@@ -123,6 +134,15 @@
 .landing-page .landing-section {
   padding: 40px 2%;
   background: #f8f9fa;
+}
+
+.landing-page .contact-section {
+  display: flex;
+  align-items: center;
+}
+
+.landing-page .contact-section .container {
+  width: 100%;
 }
 
 .landing-page .section-title {

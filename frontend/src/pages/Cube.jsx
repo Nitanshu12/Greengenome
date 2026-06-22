@@ -68,10 +68,10 @@ export default function Cube() {
         </div>
         <div className={`landing-menu${menuOpen ? " active" : ""}`}>
           <a href="/#home">Home</a>
-          <a href="/#about">About Us</a>
-          <a href="/#services">Services</a>
+          <Link to="/about">About Us</Link>
+          <Link to="/services">Services</Link>
           <Link to="/cube">Cube</Link>
-          <a href="/#contact">Contact Us</a>
+          <Link to="/contact">Contact Us</Link>
         </div>
         <div className={`landing-menu${menuOpen ? " active" : ""}`}>
           <Link to="/login">Login</Link>

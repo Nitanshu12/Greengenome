@@ -1,0 +1,143 @@
+/* ===== SERVICES HERO ===== */
+.landing-page .services-hero {
+  text-align: center;
+  padding: 90px 6% 60px;
+}
+
+.landing-page .services-hero h1 {
+  color: #077B4D;
+  font-size: 2.8rem;
+  font-weight: 800;
+  margin: 0 0 20px;
+}
+
+.landing-page .services-hero p {
+  color: #444;
+  font-size: 1.15rem;
+  max-width: 760px;
+  margin: 0 auto;
+  line-height: 1.8;
+}
+
+/* ===== SERVICE ROWS ===== */
+.landing-page .services-list {
+  display: flex;
+  flex-direction: column;
+  gap: 120px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 40px 6% 120px;
+  box-sizing: border-box;
+}
+
+.landing-page .service-row {
+  display: flex;
+  align-items: center;
+  gap: 70px;
+}
+
+.landing-page .service-row.reverse {
+  flex-direction: row-reverse;
+}
+
+.landing-page .service-media,
+.landing-page .service-content {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.landing-page .service-media-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 402 / 554;
+  object-fit: cover;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+}
+
+.landing-page .service-content h2 {
+  color: #077B4D;
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin: 0 0 22px;
+  padding-bottom: 14px;
+  border-bottom: 4px solid #A4CC3D;
+  display: inline-block;
+}
+
+.landing-page .service-content p {
+  color: #444;
+  font-size: 1.05rem;
+  line-height: 1.8;
+  margin: 0 0 26px;
+}
+
+.landing-page .service-content ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.landing-page .service-content ul li {
+  position: relative;
+  padding-left: 26px;
+  font-size: 1.02rem;
+  color: #333;
+}
+
+.landing-page .service-content ul li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #A4CC3D;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 900px) {
+  .landing-page .service-row,
+  .landing-page .service-row.reverse {
+    flex-direction: column;
+    gap: 30px;
+  }
+
+  .landing-page .service-media,
+  .landing-page .service-content {
+    width: 100%;
+  }
+
+  .landing-page .service-media-img {
+    max-width: 320px;
+    margin: 0 auto;
+  }
+
+  .landing-page .services-list {
+    gap: 80px;
+    padding: 30px 6% 90px;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-page .services-hero {
+    padding: 60px 6% 40px;
+  }
+
+  .landing-page .services-hero h1 {
+    font-size: 1.8rem;
+  }
+
+  .landing-page .service-content h2 {
+    font-size: 1.5rem;
+  }
+
+  .landing-page .services-list {
+    gap: 56px;
+    padding: 20px 6% 70px;
+  }
+}

@@ -4,6 +4,9 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import LandingPage from "./pages/LandingPage";
 import Cube from "./pages/Cube";
+import About from "./pages/About";
+import Contact from "./pages/Contact";
+import Services from "./pages/Services";
 import Dashboard from "./pages/Dashboard";
 import Packages from "./pages/Packages";
 import AdminUpload from "./pages/AdminUpload";
@@ -32,6 +35,9 @@ export default function App() {
       {/* Public landing page */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/cube" element={<Cube />} />
+      <Route path="/about" element={<About />} />
+      <Route path="/contact" element={<Contact />} />
+      <Route path="/services" element={<Services />} />
       <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
 
       {/* Protected app routes — same paths as before */}

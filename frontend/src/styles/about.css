@@ -1,0 +1,152 @@
+/* ===== ABOUT US CARD ===== */
+.landing-page .about-section {
+  padding: 50px 6% 20px;
+}
+
+.landing-page .about-card {
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  padding: 40px 50px;
+  max-width: 1200px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.landing-page .about-card h1 {
+  text-align: center;
+  color: #000;
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin: 0 0 24px;
+}
+
+.landing-page .about-card p {
+  color: #444;
+  font-size: 1rem;
+  line-height: 1.8;
+  text-align: center;
+  margin: 0;
+}
+
+/* ===== VISION / MISSION ===== */
+.landing-page .vision-mission-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  max-width: 1200px;
+  margin: 60px auto 0;
+  margin-bottom: 50px;
+  padding: 0 6% 50px;
+  box-sizing: border-box;
+}
+
+.landing-page .vision-mission-card {
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  padding: 30px 34px;
+  box-sizing: border-box;
+}
+
+.landing-page .vision-mission-card h3 {
+  color: #077B4D;
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin: 0 0 14px;
+}
+
+.landing-page .vision-mission-card p {
+  color: #333;
+  margin: 0;
+}
+
+.landing-page .vision-mission-card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #333;
+}
+
+.landing-page .vision-mission-card ul li {
+  margin-bottom: 6px;
+}
+
+/* ===== LEADERSHIP ===== */
+.landing-page .leadership-section {
+  padding: 10px 6% 100px;
+}
+
+.landing-page .leadership-section h2 {
+  color: #1a1a1a;
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0 0 24px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 40px;
+}
+
+.landing-page .leadership-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  height:200px;
+  width:1200px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.landing-page .leader-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+  padding: 28px 30px;
+  box-sizing: border-box;
+}
+
+.landing-page .leader-card h4 {
+  color: #1a1a1a;
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+.landing-page .leader-card .leader-role {
+  color: #077B4D;
+  font-weight: 600;
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.landing-page .leader-card .leader-bio {
+  color: #555;
+  line-height: 1.7;
+  margin: 0;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 900px) {
+  .landing-page .vision-mission-grid,
+  .landing-page .leadership-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-page .about-card {
+    padding: 32px 28px;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-page .about-card {
+    padding: 24px 18px;
+  }
+
+  .landing-page .about-card h1 {
+    font-size: 1.7rem;
+  }
+
+  .landing-page .vision-mission-card,
+  .landing-page .leader-card {
+    padding: 22px 20px;
+  }
+}
