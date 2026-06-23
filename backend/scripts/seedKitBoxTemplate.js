@@ -57,6 +57,11 @@ async function seed() {
 
   const conn = await pool.getConnection();
   try {
+    // Excel-pasted item names carry odd Unicode (narrow no-break spaces, en
+    // dashes, ×). Force the table to utf8mb4 right here, regardless of
+    // whether the app's own schema migration has run on this server yet.
+    await conn.query(`ALTER TABLE kit_box_template CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+
     const [[{ existing }]] = await conn.query("SELECT COUNT(*) AS existing FROM kit_box_template");
     if (existing > 0) {
       console.log(`⚠ kit_box_template already has ${existing} rows — aborting so nothing is overwritten. Truncate it manually first if you want to reseed.`);
