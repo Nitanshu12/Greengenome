@@ -140,6 +140,8 @@ app.use("/api/bom-disaster",   require("./routes/bomDisaster"));
 app.use("/api/stock-batches",  require("./routes/stockBatches"));
 app.use("/api/kit-assembly",      require("./routes/kitAssembly"));
 app.use("/api/purchase-orders",  require("./routes/purchaseOrders"));
+app.use("/api/sub-kits",         require("./routes/subKits"));
+app.use("/api/kit-box-template", require("./routes/kitBoxTemplate"));
 app.use("/api",                  require("./routes/kits"));
 
 

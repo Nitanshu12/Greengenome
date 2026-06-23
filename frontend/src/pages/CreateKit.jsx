@@ -30,6 +30,57 @@ function StatusBadge({ status }) {
   );
 }
 
+// Splits the backend's combined (across all `numKits`) allocated/shortfall
+// totals into a per-kit-instance view for display only — the backend never
+// tracked allocation per individual kit instance, so this fills kit 1's need
+// first, then kit 2's, etc., from the actually-obtained quantity. No DB state
+// changes; it's purely how the numbers are grouped on screen.
+function splitRowsPerKit(allocated, shortfalls, numKits) {
+  const combined = [
+    ...(allocated || []).map(r => ({ ...r, _got: r.allocated_qty })),
+    ...(shortfalls || []).map(r => ({ ...r, _got: r.available_qty ?? 0 })),
+  ];
+
+  const perKit = Array.from({ length: numKits }, () => ({ allocated: [], shortfalls: [] }));
+
+  for (const row of combined) {
+    const perKitRequired = row.required_qty / numKits;
+    let remainingGot = row._got;
+    for (let i = 0; i < numKits; i++) {
+      const give = Math.min(perKitRequired, remainingGot);
+      remainingGot -= give;
+      const shortfall = perKitRequired - give;
+      const entry = {
+        item_code: row.item_code,
+        item_name: row.item_name,
+        is_subkit: row.is_subkit,
+        required_qty: perKitRequired,
+        allocated_qty: give,
+        shortfall_qty: shortfall,
+      };
+      if (shortfall > 0) perKit[i].shortfalls.push(entry);
+      else perKit[i].allocated.push(entry);
+    }
+  }
+
+  return perKit;
+}
+
+// GET /:kit_id/details and POST /create return slightly different shapes for
+// the same data (details nests under `kit`, and its shortfall rows carry the
+// obtained amount as `allocated_qty` instead of `available_qty`) — normalize
+// to the POST shape so the same render code (and splitRowsPerKit) works for both.
+function kitDetailsToResult(details) {
+  return {
+    kit_id: details.kit.kit_id,
+    kit_name: details.kit.kit_name,
+    qty_kits: details.kit.qty_kits,
+    status: details.kit.status,
+    allocated: details.allocated,
+    shortfalls: (details.shortfalls || []).map(s => ({ ...s, available_qty: s.allocated_qty })),
+  };
+}
+
 function SummaryChip({ count, total, type }) {
   const isGood = type === "allocated";
   return (
@@ -460,6 +511,8 @@ export default function CreateKit() {
   const [result, setResult] = useState(null);
   const [allocatedOpen, setAllocatedOpen] = useState(true);
   const [shortfallsOpen, setShortfallsOpen] = useState(true);
+  const [perKitOpen, setPerKitOpen] = useState({});
+  const [perKitSectionOpen, setPerKitSectionOpen] = useState({});
   const [history, setHistory] = useState([]);
   const [historyOpen, setHistoryOpen] = useState(true);
 
@@ -505,6 +558,19 @@ export default function CreateKit() {
         const rows = d.data || [];
         setHistory(rows);
         loadPendingKit(rows);
+
+        // Restore the most recently created kit's result view — without this,
+        // navigating away and back to this page loses the just-created kit's
+        // breakdown (it only lived in local state, not on the server).
+        const mostRecent = rows.find(h => h.status !== "cancelled");
+        if (mostRecent) {
+          api.getKitDetails(mostRecent.kit_id)
+            .then(details => {
+              setResult(kitDetailsToResult(details));
+              setPhase("result");
+            })
+            .catch(() => {});
+        }
       })
       .catch(() => {});
   }, [loadPendingKit]);
@@ -588,6 +654,8 @@ export default function CreateKit() {
     try {
       const data = await api.createKit({ ...form, qty_kits: qty });
       setResult(data);
+      setPerKitOpen({});
+      setPerKitSectionOpen({});
       setPhase("result");
       api.getKitHistory().then(d => {
         const rows = d.data || [];
@@ -609,6 +677,8 @@ export default function CreateKit() {
   const handleCreateAnother = () => {
     setForm(EMPTY_FORM);
     setResult(null);
+    setPerKitOpen({});
+    setPerKitSectionOpen({});
     setPhase("form");
   };
 
@@ -1324,6 +1394,10 @@ export default function CreateKit() {
   }
 
   // ── Result phase ──────────────────────────────────────────────────────────
+  const numKits = result.qty_kits;
+  const isMulti = numKits > 1;
+  const perKitBuckets = isMulti ? splitRowsPerKit(result.allocated, result.shortfalls, numKits) : null;
+
   return (
     <>
       <KitDetailModal />
@@ -1354,8 +1428,147 @@ export default function CreateKit() {
         </button>
       </div>
 
-      {/* Allocated Items — collapsible */}
-      {result.allocated?.length > 0 && (
+      {/* Per-Kit Breakdown — only when more than one kit was requested */}
+      {isMulti && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{
+            fontSize: 12, fontWeight: 700, color: "var(--muted)",
+            textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 12,
+          }}>
+            Per-Kit Breakdown
+          </div>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: 14,
+          }}>
+            {perKitBuckets.map((bucket, idx) => {
+              const isOpen = !!perKitOpen[idx];
+              const hasShort = bucket.shortfalls.length > 0;
+              const borderColor = hasShort ? "#fca5a5" : "#86efac";
+              return (
+                <div key={idx} style={{
+                  border: `1.5px solid ${borderColor}`, borderRadius: 12,
+                  overflow: "hidden", background: "var(--surface)",
+                }}>
+                  <button
+                    onClick={() => setPerKitOpen(p => ({ ...p, [idx]: !p[idx] }))}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center", gap: 10,
+                      padding: "12px 14px",
+                      background: hasShort ? "#fff7f7" : "#f0fdf4",
+                      border: "none", cursor: "pointer", textAlign: "left",
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>
+                        {result.kit_name} {idx + 1}
+                      </div>
+                      <div style={{ fontSize: 11, marginTop: 3, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {hasShort ? (
+                          <span style={{ color: "#dc2626", fontWeight: 700 }}>
+                            ⚠ {bucket.shortfalls.length} shortfall{bucket.shortfalls.length !== 1 ? "s" : ""}
+                          </span>
+                        ) : (
+                          <span style={{ color: "#15803d", fontWeight: 700 }}>✓ Fully Allocated</span>
+                        )}
+                        <span style={{ color: "var(--muted)" }}>· {bucket.allocated.length} allocated</span>
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: 14, color: hasShort ? "#dc2626" : "#16a34a", fontWeight: 700,
+                      transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                      transition: "transform 0.2s", flexShrink: 0,
+                    }}>
+                      ▾
+                    </span>
+                  </button>
+
+                  {isOpen && (
+                    <div style={{ borderTop: `1px solid ${borderColor}` }}>
+                      {bucket.allocated.length > 0 && (() => {
+                        const key = `${idx}-allocated`;
+                        const sectionOpen = !!perKitSectionOpen[key];
+                        return (
+                          <div style={{ borderBottom: bucket.shortfalls.length > 0 ? "1px solid var(--border)" : "none" }}>
+                            <button
+                              onClick={() => setPerKitSectionOpen(p => ({ ...p, [key]: !p[key] }))}
+                              style={{
+                                width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                                background: "none", border: "none", cursor: "pointer",
+                                padding: "8px 14px", fontSize: 12, fontWeight: 700, color: "#15803d",
+                              }}
+                            >
+                              <span>Allocated ({bucket.allocated.length})</span>
+                              <span style={{ transform: sectionOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
+                            </button>
+                            {sectionOpen && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "0 14px 10px" }}>
+                                {bucket.allocated.map(row => (
+                                  <div key={row.item_code} style={{
+                                    display: "flex", justifyContent: "space-between", gap: 8,
+                                    fontSize: 12, padding: "4px 8px", background: "#f0fdf4", borderRadius: 6,
+                                  }}>
+                                    <span style={{ fontWeight: 500 }}>
+                                      {row.is_subkit && <span title="Sub-kit">🧩 </span>}{row.item_name}
+                                    </span>
+                                    <span style={{ color: "#16a34a", fontWeight: 700, flexShrink: 0 }}>
+                                      {row.allocated_qty}/{row.required_qty}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      {bucket.shortfalls.length > 0 && (() => {
+                        const key = `${idx}-shortfall`;
+                        const sectionOpen = !!perKitSectionOpen[key];
+                        return (
+                          <div>
+                            <button
+                              onClick={() => setPerKitSectionOpen(p => ({ ...p, [key]: !p[key] }))}
+                              style={{
+                                width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                                background: "none", border: "none", cursor: "pointer",
+                                padding: "8px 14px", fontSize: 12, fontWeight: 700, color: "#dc2626",
+                              }}
+                            >
+                              <span>Shortfall ({bucket.shortfalls.length})</span>
+                              <span style={{ transform: sectionOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
+                            </button>
+                            {sectionOpen && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "0 14px 10px" }}>
+                                {bucket.shortfalls.map(row => (
+                                  <div key={row.item_code} style={{
+                                    display: "flex", justifyContent: "space-between", gap: 8,
+                                    fontSize: 12, padding: "4px 8px", background: "#fff7f7", borderRadius: 6,
+                                  }}>
+                                    <span style={{ fontWeight: 500 }}>
+                                      {row.is_subkit && <span title="Sub-kit">🧩 </span>}{row.item_name}
+                                    </span>
+                                    <span style={{ color: "#dc2626", fontWeight: 700, flexShrink: 0 }}>
+                                      −{row.shortfall_qty} (got {row.allocated_qty}/{row.required_qty})
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Allocated Items — collapsible (single-kit view only; per-kit cards above cover the multi-kit case) */}
+      {!isMulti && result.allocated?.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <button
             onClick={() => setAllocatedOpen(o => !o)}
@@ -1394,7 +1607,7 @@ export default function CreateKit() {
 
           {allocatedOpen && (
             <div style={{ border: "1px solid #86efac", borderTop: "none", borderRadius: "0 0 10px 10px", overflow: "hidden" }}>
-              <div className="table-wrap" style={{ margin: 0, overflowX: "auto" }}>
+              <div className="table-wrap" style={{ margin: 0, overflowX: "auto", maxHeight: 420, overflowY: "auto" }}>
                 <table style={{ minWidth: 480 }}>
                   <thead>
                     <tr>
@@ -1464,7 +1677,7 @@ export default function CreateKit() {
           >
             <div style={{ width: 4, height: 20, background: "#dc2626", borderRadius: 2, flexShrink: 0 }} />
             <span style={{ fontWeight: 700, fontSize: 15, color: "#dc2626", flex: 1 }}>
-              Shortfall Items
+              {isMulti ? "Combined Shortfalls — All Kits" : "Shortfall Items"}
             </span>
             <span style={{
               fontSize: 12, color: "#dc2626", fontWeight: 600,
@@ -1498,7 +1711,7 @@ export default function CreateKit() {
 
           {shortfallsOpen && (
             <div style={{ border: "1px solid #fca5a5", borderTop: "none", borderRadius: "0 0 10px 10px", overflow: "hidden" }}>
-              <div className="table-wrap" style={{ margin: 0, overflowX: "auto" }}>
+              <div className="table-wrap" style={{ margin: 0, overflowX: "auto", maxHeight: 420, overflowY: "auto" }}>
                 <table style={{ minWidth: 520 }}>
                   <thead>
                     <tr>

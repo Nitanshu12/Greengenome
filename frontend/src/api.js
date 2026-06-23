@@ -119,6 +119,18 @@ export const api = {
   getPOItemsStatus:    (id)      => request("GET",   `/purchase-orders/${id}/items-status`),
   receivePO:           (body)    => request("POST",  "/stock-batches/receive-po", body),
 
+  // Sub-Kits
+  getSubKits:    ()             => request("GET",    "/sub-kits"),
+  createSubKit:  (body)         => request("POST",   "/sub-kits", body),
+  updateSubKit:  (code, body)   => request("PUT",    `/sub-kits/${encodeURIComponent(code)}`, body),
+  deleteSubKit:  (code)         => request("DELETE", `/sub-kits/${encodeURIComponent(code)}`),
+
+  // Cube/Box Template
+  getKitBoxTemplate:    ()           => request("GET",    "/kit-box-template"),
+  createKitBoxTemplate: (body)       => request("POST",   "/kit-box-template", body),
+  updateKitBoxTemplate: (id, body)   => request("PUT",    `/kit-box-template/${id}`, body),
+  deleteKitBoxTemplate: (id)         => request("DELETE", `/kit-box-template/${id}`),
+
   // Admin — users
   getUsers:       ()      => request("GET",   "/admin/users"),
   createUser:     (body)  => request("POST",  "/admin/users", body),

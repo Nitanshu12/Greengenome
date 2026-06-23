@@ -13,6 +13,8 @@ const NAV = [
   { to: "/stock-batches", icon: "🏬", label: "Stock Batches" },
   { to: "/create-kit",   icon: "🧰", label: "Create Kit" },
   { to: "/po-status",    icon: "📄", label: "Purchase Orders" },
+  { to: "/sub-kits",          icon: "🧩", label: "Sub-Kit Generation" },
+  { to: "/cube-box-template", icon: "📐", label: "Cube / Box Template" },
 ];
 
 const ADMIN_NAV = [

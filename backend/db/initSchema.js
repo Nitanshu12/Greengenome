@@ -257,6 +257,47 @@ async function initSchema() {
       MODIFY COLUMN status ENUM('draft','sent','received','cancelled','short') NOT NULL DEFAULT 'draft'
     `);
 
+    // ── Sub-kits ────────────────────────────────────────────────
+    // A sub-kit (e.g. "IV Cannulation Kit") is still just a row in items —
+    // is_subkit only tags it so BOM/box-template/UI can tell it apart from a
+    // raw item. Everything that already keys off items.item_code (BOM,
+    // stock_batches, kit_box_template) needs zero changes to support it.
+    await conn.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS is_subkit TINYINT(1) NOT NULL DEFAULT 0`);
+
+    // The recipe: which raw items (and how much of each) make ONE unit of a sub-kit.
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS sub_kit_components (
+        id                  INT AUTO_INCREMENT PRIMARY KEY,
+        sub_kit_item_code   VARCHAR(50) NOT NULL,
+        component_item_code VARCHAR(50) NOT NULL,
+        qty_per_unit        INT NOT NULL DEFAULT 1,
+        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (sub_kit_item_code)   REFERENCES items(item_code) ON DELETE CASCADE,
+        FOREIGN KEY (component_item_code) REFERENCES items(item_code) ON DELETE RESTRICT,
+        UNIQUE KEY uq_subkit_component (sub_kit_item_code, component_item_code)
+      ) ENGINE=InnoDB
+    `);
+
+    // ── Cube/Box template ──────────────────────────────────────
+    // Static, admin-editable map of which item (raw or sub-kit) goes in which
+    // cube/box and how much. box_no is VARCHAR because a couple of slots in
+    // the reference layout are named sections ("Air Evacuation Set..."), not
+    // numbered boxes. Brand/OEM/docs are deliberately NOT stored here — they
+    // come live from items/item_documents at read time.
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS kit_box_template (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        cube_no    INT NOT NULL,
+        box_no     VARCHAR(50) NOT NULL,
+        item_code  VARCHAR(50) NOT NULL,
+        qty        INT NOT NULL DEFAULT 1,
+        row_order  INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (item_code) REFERENCES items(item_code) ON DELETE RESTRICT
+      ) ENGINE=InnoDB
+    `);
+
     console.log("✅ MariaDB schema ready");
   } catch (err) {
     console.error("❌ MariaDB schema init failed:", err.message);
