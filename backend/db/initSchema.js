@@ -295,13 +295,18 @@ async function initSchema() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (item_code) REFERENCES items(item_code) ON DELETE RESTRICT
-      ) ENGINE=InnoDB
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     // item_code is nullable: a row whose Excel item name has no exact match in
     // items yet still gets imported (nothing is silently dropped) — it just
     // carries the raw text here until an admin links it to a real item/sub-kit.
     await conn.query(`ALTER TABLE kit_box_template MODIFY COLUMN item_code VARCHAR(50) DEFAULT NULL`);
     await conn.query(`ALTER TABLE kit_box_template ADD COLUMN IF NOT EXISTS item_name_raw VARCHAR(500) DEFAULT NULL`);
+    // Excel-pasted item names carry odd Unicode (narrow no-break spaces, en
+    // dashes, ×) that plain latin1/utf8 columns reject outright. Force
+    // utf8mb4 explicitly rather than relying on the database's default —
+    // safe/idempotent to re-run even if the table was already created.
+    await conn.query(`ALTER TABLE kit_box_template CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
 
     console.log("✅ MariaDB schema ready");
   } catch (err) {
