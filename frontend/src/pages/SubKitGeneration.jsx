@@ -5,10 +5,17 @@ import { useToast } from "../components/Toast";
 
 const EMPTY_FORM = { item_code: "", name: "", unit: "Set", components: [{ component_item_code: "", qty_per_unit: "" }] };
 
-function SubKitFormModal({ initial, rawItems, onSave, onClose, saving }) {
-  const [form, setForm] = useState(initial || EMPTY_FORM);
+function SubKitFormModal({ initial, nextCode, rawItems, onSave, onClose, saving }) {
+  const [form, setForm] = useState(() => {
+    if (initial) return initial;
+    return { ...EMPTY_FORM, item_code: nextCode || "" };
+  });
   const isEdit = !!initial;
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    if (!initial && nextCode) setForm(f => ({ ...f, item_code: nextCode }));
+  }, [nextCode, initial]);
 
   function setComponent(idx, key, value) {
     setForm(f => ({
@@ -31,10 +38,10 @@ function SubKitFormModal({ initial, rawItems, onSave, onClose, saving }) {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div className="form-group">
-            <label className="form-label">Item Code *</label>
+            <label className="form-label">Item Code</label>
             <input className="form-input" value={form.item_code}
-              onChange={e => set("item_code", e.target.value)}
-              placeholder="e.g. GGIPL - 462" disabled={isEdit} />
+              readOnly
+              style={{ background: "var(--border)", cursor: "default", color: "var(--muted)", fontFamily: "monospace" }} />
           </div>
           <div className="form-group">
             <label className="form-label">Unit</label>
@@ -103,6 +110,7 @@ export default function SubKitGeneration() {
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [nextItemCode, setNextItemCode] = useState("");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -161,7 +169,16 @@ export default function SubKitGeneration() {
     setEditTarget(sk);
     setShowForm(true);
   };
-  const openAdd = () => { setEditTarget(null); setShowForm(true); };
+  const openAdd = async () => {
+    setEditTarget(null);
+    try {
+      const d = await api.getNextItemCode();
+      setNextItemCode(d.next_code);
+    } catch {
+      setNextItemCode("");
+    }
+    setShowForm(true);
+  };
 
   const filtered = subKits.filter(sk =>
     !search ||
@@ -272,6 +289,7 @@ export default function SubKitGeneration() {
               qty_per_unit: String(c.qty_per_unit),
             })),
           } : null}
+          nextCode={nextItemCode}
           rawItems={rawItems}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditTarget(null); }}
