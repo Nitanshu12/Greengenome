@@ -289,7 +289,7 @@ async function initSchema() {
         id         INT AUTO_INCREMENT PRIMARY KEY,
         cube_no    INT NOT NULL,
         box_no     VARCHAR(50) NOT NULL,
-        item_code  VARCHAR(50) NOT NULL,
+        item_code  VARCHAR(50) DEFAULT NULL,
         qty        INT NOT NULL DEFAULT 1,
         row_order  INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -297,6 +297,11 @@ async function initSchema() {
         FOREIGN KEY (item_code) REFERENCES items(item_code) ON DELETE RESTRICT
       ) ENGINE=InnoDB
     `);
+    // item_code is nullable: a row whose Excel item name has no exact match in
+    // items yet still gets imported (nothing is silently dropped) — it just
+    // carries the raw text here until an admin links it to a real item/sub-kit.
+    await conn.query(`ALTER TABLE kit_box_template MODIFY COLUMN item_code VARCHAR(50) DEFAULT NULL`);
+    await conn.query(`ALTER TABLE kit_box_template ADD COLUMN IF NOT EXISTS item_name_raw VARCHAR(500) DEFAULT NULL`);
 
     console.log("✅ MariaDB schema ready");
   } catch (err) {

@@ -28,16 +28,21 @@ function RowFormModal({ isEdit, initial, items, onSave, onClose, saving }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Item *</label>
+          <label className="form-label">Item</label>
           <select className="form-input" value={form.item_code}
             onChange={e => set("item_code", e.target.value)}>
-            <option value="">— select item —</option>
+            <option value="">— unresolved / leave unmatched —</option>
             {items.map(i => (
               <option key={i.item_code} value={i.item_code}>
                 {i.is_subkit ? "🧩 " : ""}{i.item_code} — {i.name}
               </option>
             ))}
           </select>
+          {isEdit && (
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+              Leave unresolved if no matching item/sub-kit exists yet — the row stays with its raw Excel name.
+            </div>
+          )}
         </div>
 
         <div className="form-group">
@@ -66,7 +71,9 @@ export default function CubeBoxTemplate() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [activeCube, setActiveCube] = useState(null); // null = all cubes
+
+  const [cubeOpen, setCubeOpen] = useState({});
+  const [boxOpen, setBoxOpen] = useState({});
 
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
@@ -83,23 +90,13 @@ export default function CubeBoxTemplate() {
 
   useEffect(() => { load(); }, [load]);
 
-  const cubeNumbers = useMemo(
-    () => [...new Set(rows.map(r => r.cube_no))].sort((a, b) => a - b),
-    [rows]
-  );
+  const unmatchedCount = useMemo(() => rows.filter(r => r.unmatched).length, [rows]);
 
   // Group rows -> cubes -> boxes, preserving row_order sequence
-  const grouped = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const filtered = rows.filter(r => {
-      if (activeCube !== null && r.cube_no !== activeCube) return false;
-      if (!q) return true;
-      return r.item_name.toLowerCase().includes(q) || r.item_code.toLowerCase().includes(q);
-    });
-
+  const allGrouped = useMemo(() => {
     const cubes = [];
     let curCube = null, curBox = null;
-    for (const r of filtered) {
+    for (const r of rows) {
       if (!curCube || curCube.cube_no !== r.cube_no) {
         curCube = { cube_no: r.cube_no, boxes: [] };
         cubes.push(curCube);
@@ -112,11 +109,33 @@ export default function CubeBoxTemplate() {
       curBox.rows.push(r);
     }
     return cubes;
-  }, [rows, search, activeCube]);
+  }, [rows]);
+
+  const q = search.trim().toLowerCase();
+  const isSearching = q.length > 0;
+
+  // While searching, only keep boxes with a matching row, and force those open
+  const visibleGrouped = useMemo(() => {
+    if (!isSearching) return allGrouped;
+    return allGrouped
+      .map(cube => ({
+        ...cube,
+        boxes: cube.boxes
+          .map(box => ({
+            ...box,
+            rows: box.rows.filter(r => r.item_name.toLowerCase().includes(q) || (r.item_code || "").toLowerCase().includes(q)),
+          }))
+          .filter(box => box.rows.length > 0),
+      }))
+      .filter(cube => cube.boxes.length > 0);
+  }, [allGrouped, isSearching, q]);
+
+  const isCubeOpen = (cube_no) => isSearching || !!cubeOpen[cube_no];
+  const isBoxOpen  = (cube_no, box_no) => isSearching || !!boxOpen[`${cube_no}-${box_no}`];
 
   const handleSave = async (form) => {
-    if (!form.cube_no || !form.box_no || !form.item_code || !form.qty) {
-      toast("All fields are required", "error"); return;
+    if (!form.cube_no || !form.box_no || !form.qty) {
+      toast("Cube, box and quantity are required", "error"); return;
     }
     setSaving(true);
     try {
@@ -124,6 +143,7 @@ export default function CubeBoxTemplate() {
         await api.updateKitBoxTemplate(editTarget.id, form);
         toast("Row updated");
       } else {
+        if (!form.item_code) { toast("Pick an item for a new row", "error"); setSaving(false); return; }
         await api.createKitBoxTemplate(form);
         toast("Item added to box");
       }
@@ -162,7 +182,10 @@ export default function CubeBoxTemplate() {
         <div>
           <div className="page-title">Cube / Box Template</div>
           <div className="page-sub">
-            {rows.length} item placement{rows.length !== 1 ? "s" : ""} across {cubeNumbers.length} cube{cubeNumbers.length !== 1 ? "s" : ""} — the fixed packing layout used for every deployed kit
+            {rows.length} item placement{rows.length !== 1 ? "s" : ""}
+            {unmatchedCount > 0 && (
+              <span style={{ color: "#b45309", fontWeight: 600 }}> · {unmatchedCount} unmatched — need linking to an item or sub-kit</span>
+            )}
           </div>
         </div>
       </div>
@@ -178,24 +201,6 @@ export default function CubeBoxTemplate() {
         {search && (
           <button className="btn btn-ghost btn-sm" onClick={() => setSearch("")}>Clear</button>
         )}
-
-        <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
-          <button
-            className={`btn btn-sm ${activeCube === null ? "btn-primary" : "btn-ghost"}`}
-            onClick={() => setActiveCube(null)}
-          >
-            All Cubes
-          </button>
-          {cubeNumbers.map(c => (
-            <button
-              key={c}
-              className={`btn btn-sm ${activeCube === c ? "btn-primary" : "btn-ghost"}`}
-              onClick={() => setActiveCube(c)}
-            >
-              Cube {c}
-            </button>
-          ))}
-        </div>
       </div>
 
       {loading ? (
@@ -205,78 +210,116 @@ export default function CubeBoxTemplate() {
           <div className="empty-icon">📦</div>
           <div>No box template defined yet</div>
         </div>
-      ) : grouped.length === 0 ? (
+      ) : visibleGrouped.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">🔍</div>
           <div>No items match "{search}"</div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-          {grouped.map(cube => (
-            <div key={cube.cube_no}>
-              <div style={{
-                fontSize: 16, fontWeight: 700, padding: "8px 14px", borderRadius: 8,
-                background: "var(--primary, #077B4D)", color: "#fff", marginBottom: 14,
-                display: "inline-block"
-              }}>
-                CUBE {cube.cube_no}
-              </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {visibleGrouped.map(cube => {
+            const cubeOpenNow = isCubeOpen(cube.cube_no);
+            const cubeItemCount = cube.boxes.reduce((s, b) => s + b.rows.length, 0);
+            return (
+              <div key={cube.cube_no} style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+                <button
+                  onClick={() => setCubeOpen(p => ({ ...p, [cube.cube_no]: !p[cube.cube_no] }))}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 10,
+                    padding: "12px 16px", background: "var(--primary, #077B4D)", color: "#fff",
+                    border: "none", cursor: "pointer", textAlign: "left",
+                  }}
+                >
+                  <span style={{ fontWeight: 700, fontSize: 14, flex: 1 }}>CUBE {cube.cube_no}</span>
+                  <span style={{ fontSize: 12, opacity: 0.85 }}>
+                    {cube.boxes.length} box{cube.boxes.length !== 1 ? "es" : ""} · {cubeItemCount} items
+                  </span>
+                  <span style={{ transform: cubeOpenNow ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
+                </button>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {cube.boxes.map(box => (
-                  <div key={box.box_no} className="card" style={{ padding: 14 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>
-                        Box {box.box_no}
-                      </div>
-                      {isAdmin && (
-                        <button className="btn btn-ghost btn-sm" onClick={() => openAddToBox(cube.cube_no, box.box_no)}>
-                          + Add Item
-                        </button>
-                      )}
-                    </div>
-                    <div className="table-wrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Item Code</th>
-                            <th>Item Name</th>
-                            <th>Qty</th>
-                            {isAdmin && <th>Actions</th>}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {box.rows.map(r => (
-                            <tr key={r.id}>
-                              <td>
-                                <span style={{ fontFamily: "monospace", fontWeight: 600, fontSize: 12,
-                                  background: "var(--border)", padding: "2px 6px", borderRadius: 4 }}>
-                                  {r.item_code}
-                                </span>
-                              </td>
-                              <td style={{ fontWeight: 500 }}>
-                                {r.is_subkit && <span title="Sub-kit">🧩 </span>}
-                                {r.item_name}
-                              </td>
-                              <td style={{ fontWeight: 600 }}>{r.qty}</td>
-                              {isAdmin && (
-                                <td>
-                                  <div className="flex gap-2">
-                                    <button className="btn btn-ghost btn-sm" onClick={() => openEdit(r)}>Edit</button>
-                                    <button className="btn btn-danger btn-sm" onClick={() => handleDelete(r)}>Delete</button>
-                                  </div>
-                                </td>
-                              )}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                {cubeOpenNow && (
+                  <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8, background: "var(--bg-alt, #f8f9fa)" }}>
+                    {cube.boxes.map(box => {
+                      const boxOpenNow = isBoxOpen(cube.cube_no, box.box_no);
+                      return (
+                        <div key={box.box_no} className="card" style={{ padding: 0, overflow: "hidden" }}>
+                          <button
+                            onClick={() => setBoxOpen(p => ({ ...p, [`${cube.cube_no}-${box.box_no}`]: !p[`${cube.cube_no}-${box.box_no}`] }))}
+                            style={{
+                              width: "100%", display: "flex", alignItems: "center", gap: 10,
+                              padding: "10px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left",
+                            }}
+                          >
+                            <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>Box {box.box_no}</span>
+                            <span style={{ fontSize: 11, color: "var(--muted)" }}>{box.rows.length} item{box.rows.length !== 1 ? "s" : ""}</span>
+                            {isAdmin && (
+                              <span
+                                role="button"
+                                onClick={e => { e.stopPropagation(); openAddToBox(cube.cube_no, box.box_no); }}
+                                style={{ fontSize: 11, color: "var(--primary, #077B4D)", fontWeight: 600, padding: "2px 8px" }}
+                              >
+                                + Add Item
+                              </span>
+                            )}
+                            <span style={{ transform: boxOpenNow ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▾</span>
+                          </button>
+
+                          {boxOpenNow && (
+                            <div className="table-wrap" style={{ margin: 0, borderTop: "1px solid var(--border)" }}>
+                              <table>
+                                <thead>
+                                  <tr>
+                                    <th>Item</th>
+                                    <th>Qty</th>
+                                    {isAdmin && <th>Actions</th>}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {box.rows.map(r => (
+                                    <tr key={r.id}>
+                                      <td style={{ fontWeight: 500 }}>
+                                        {!!r.is_subkit && <span title="Sub-kit">🧩 </span>}
+                                        {!r.unmatched && (
+                                          <span style={{
+                                            fontFamily: "monospace", fontWeight: 600, fontSize: 11,
+                                            background: "var(--border)", padding: "2px 6px", borderRadius: 4, marginRight: 8,
+                                          }}>
+                                            {r.item_code}
+                                          </span>
+                                        )}
+                                        {r.item_name}
+                                        {r.unmatched && (
+                                          <span style={{
+                                            fontSize: 10, fontWeight: 700, color: "#b45309", background: "#fef3c7",
+                                            padding: "1px 6px", borderRadius: 10, marginLeft: 8,
+                                          }}>
+                                            Unmatched
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td style={{ fontWeight: 600 }}>{r.qty}</td>
+                                      {isAdmin && (
+                                        <td>
+                                          <div className="flex gap-2">
+                                            <button className="btn btn-ghost btn-sm" onClick={() => openEdit(r)}>Edit</button>
+                                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(r)}>Delete</button>
+                                          </div>
+                                        </td>
+                                      )}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -287,7 +330,7 @@ export default function CubeBoxTemplate() {
             id: editTarget.id,
             cube_no: String(editTarget.cube_no),
             box_no: editTarget.box_no,
-            item_code: editTarget.item_code,
+            item_code: editTarget.item_code || "",
             qty: String(editTarget.qty),
           } : addContext ? {
             cube_no: String(addContext.cube_no),

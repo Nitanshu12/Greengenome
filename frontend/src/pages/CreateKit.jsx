@@ -204,7 +204,7 @@ function CombinedOrderModal({ shortfalls, onClose, toast }) {
                             color: isSel ? "#1d4ed8" : "var(--muted)",
                             padding: "2px 7px", borderRadius: 4,
                           }}>{v.vendor_code}</span>
-                          {v.is_preferred && (
+                          {!!v.is_preferred && (
                             <span style={{ fontSize: 10, fontWeight: 700, color: "#b45309", background: "#fef3c7", padding: "1px 6px", borderRadius: 10 }}>★ Preferred</span>
                           )}
                           <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: "auto" }}>
@@ -464,7 +464,7 @@ function VendorSelectModal({ item, onClose, toast }) {
                       }}>
                         {v.vendor_code}
                       </span>
-                      {v.is_preferred && (
+                      {!!v.is_preferred && (
                         <span style={{ fontSize: 10, fontWeight: 700, color: "#b45309", background: "#fef3c7", padding: "1px 6px", borderRadius: 10 }}>
                           ★ Preferred
                         </span>
@@ -1510,7 +1510,7 @@ export default function CreateKit() {
                                     fontSize: 12, padding: "4px 8px", background: "#f0fdf4", borderRadius: 6,
                                   }}>
                                     <span style={{ fontWeight: 500 }}>
-                                      {row.is_subkit && <span title="Sub-kit">🧩 </span>}{row.item_name}
+                                      {!!row.is_subkit && <span title="Sub-kit">🧩 </span>}{row.item_name}
                                     </span>
                                     <span style={{ color: "#16a34a", fontWeight: 700, flexShrink: 0 }}>
                                       {row.allocated_qty}/{row.required_qty}
@@ -1546,7 +1546,7 @@ export default function CreateKit() {
                                     fontSize: 12, padding: "4px 8px", background: "#fff7f7", borderRadius: 6,
                                   }}>
                                     <span style={{ fontWeight: 500 }}>
-                                      {row.is_subkit && <span title="Sub-kit">🧩 </span>}{row.item_name}
+                                      {!!row.is_subkit && <span title="Sub-kit">🧩 </span>}{row.item_name}
                                     </span>
                                     <span style={{ color: "#dc2626", fontWeight: 700, flexShrink: 0 }}>
                                       −{row.shortfall_qty} (got {row.allocated_qty}/{row.required_qty})

@@ -5,17 +5,21 @@ const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
 
-// GET /api/kit-box-template — full template, item name/brand fetched live via JOIN
+// GET /api/kit-box-template — full template, item name/brand fetched live via JOIN.
+// LEFT JOIN because a row can have no item_code yet (its Excel name had no
+// exact match in items) — it still comes back, using item_name_raw as the name.
 router.get("/", requireLogin, async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT t.id, t.cube_no, t.box_no, t.item_code, t.qty, t.row_order,
-              i.name AS item_name, i.brand, i.unit, i.is_subkit
+              COALESCE(i.name, t.item_name_raw) AS item_name,
+              i.brand, i.unit, i.is_subkit,
+              (t.item_code IS NULL) AS unmatched
        FROM kit_box_template t
-       JOIN items i ON i.item_code = t.item_code
+       LEFT JOIN items i ON i.item_code = t.item_code
        ORDER BY t.row_order ASC`
     );
-    res.json({ data: rows });
+    res.json({ data: rows.map(r => ({ ...r, unmatched: !!r.unmatched })) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -48,17 +52,18 @@ router.post("/", ...adminOnly, async (req, res) => {
   }
 });
 
-// PUT /api/kit-box-template/:id — edit a row (admin)
+// PUT /api/kit-box-template/:id — edit a row (admin). item_code may be left
+// empty to keep a row unmatched, or set to finally link it to a real item.
 router.put("/:id", ...adminOnly, async (req, res) => {
   try {
     const { cube_no, box_no, item_code, qty } = req.body;
-    if (!cube_no || !box_no || !item_code || !qty) {
-      return res.status(400).json({ error: "cube_no, box_no, item_code and qty are required" });
+    if (!cube_no || !box_no || !qty) {
+      return res.status(400).json({ error: "cube_no, box_no and qty are required" });
     }
 
     const [result] = await pool.query(
       `UPDATE kit_box_template SET cube_no = ?, box_no = ?, item_code = ?, qty = ? WHERE id = ?`,
-      [Number(cube_no), String(box_no), item_code, Number(qty), req.params.id]
+      [Number(cube_no), String(box_no), item_code || null, Number(qty), req.params.id]
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: "Row not found" });
 
