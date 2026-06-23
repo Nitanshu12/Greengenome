@@ -303,10 +303,11 @@ async function initSchema() {
     await conn.query(`ALTER TABLE kit_box_template MODIFY COLUMN item_code VARCHAR(50) DEFAULT NULL`);
     await conn.query(`ALTER TABLE kit_box_template ADD COLUMN IF NOT EXISTS item_name_raw VARCHAR(500) DEFAULT NULL`);
     // Excel-pasted item names carry odd Unicode (narrow no-break spaces, en
-    // dashes, ×) that plain latin1/utf8 columns reject outright. Force
-    // utf8mb4 explicitly rather than relying on the database's default —
-    // safe/idempotent to re-run even if the table was already created.
-    await conn.query(`ALTER TABLE kit_box_template CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    // dashes, ×) that plain latin1/utf8 columns reject outright. Target
+    // item_name_raw specifically — a table-wide CONVERT fails because
+    // item_code is locked by a foreign key constraint. Safe/idempotent to
+    // re-run even if the table was already created.
+    await conn.query(`ALTER TABLE kit_box_template MODIFY COLUMN item_name_raw VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL`);
 
     console.log("✅ MariaDB schema ready");
   } catch (err) {

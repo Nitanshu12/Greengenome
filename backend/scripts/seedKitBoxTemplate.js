@@ -58,9 +58,9 @@ async function seed() {
   const conn = await pool.getConnection();
   try {
     // Excel-pasted item names carry odd Unicode (narrow no-break spaces, en
-    // dashes, ×). Force the table to utf8mb4 right here, regardless of
-    // whether the app's own schema migration has run on this server yet.
-    await conn.query(`ALTER TABLE kit_box_template CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    // dashes, ×). Target item_name_raw specifically — a table-wide CONVERT
+    // fails because item_code is locked by a foreign key constraint.
+    await conn.query(`ALTER TABLE kit_box_template MODIFY COLUMN item_name_raw VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL`);
 
     const [[{ existing }]] = await conn.query("SELECT COUNT(*) AS existing FROM kit_box_template");
     if (existing > 0) {
