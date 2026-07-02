@@ -196,7 +196,7 @@ function DocsModal({ item, isAdmin, onClose, toast }) {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Document Name *</label>
-                  <input className="form-input" placeholder="e.g. Datasheet, ISO Certificate"
+                  <input className="form-input" placeholder="e.g. ISO Certificate"
                     value={name} onChange={e => setName(e.target.value)} />
                 </div>
                 <button className="btn btn-primary" onClick={handleAddLink}
@@ -492,7 +492,7 @@ export default function ItemsMaster() {
   const pageItems = items.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   const categoryTag = (cat) => {
-    if (!cat) return <span style={{ color: "var(--muted)" }}>—</span>;
+    if (!cat) return <span style={{ color: "var(--muted)" }}>NULL</span>;
     const upper = cat.toUpperCase();
     const cls = upper.includes("PHARMA") ? "tag-blue"
               : upper.includes("NON") ? "tag-green"
@@ -506,7 +506,7 @@ export default function ItemsMaster() {
       ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis",
           whiteSpace: "nowrap", maxWidth, fontSize: 12, color: "var(--muted)" }}
           title={val}>{val}</span>
-      : <span style={{ color: "var(--muted)" }}>—</span>;
+      : <span style={{ color: "var(--muted)" }}>NULL</span>;
 
   return (
     <>

@@ -94,21 +94,21 @@ export default function CubeBoxTemplate() {
 
   // Group rows -> cubes -> boxes, preserving row_order sequence
   const allGrouped = useMemo(() => {
-    const cubes = [];
-    let curCube = null, curBox = null;
+    const cubeMap = new Map();
     for (const r of rows) {
-      if (!curCube || curCube.cube_no !== r.cube_no) {
-        curCube = { cube_no: r.cube_no, boxes: [] };
-        cubes.push(curCube);
-        curBox = null;
+      if (!cubeMap.has(r.cube_no)) {
+        cubeMap.set(r.cube_no, { cube_no: r.cube_no, boxMap: new Map() });
       }
-      if (!curBox || curBox.box_no !== r.box_no) {
-        curBox = { box_no: r.box_no, rows: [] };
-        curCube.boxes.push(curBox);
+      const cube = cubeMap.get(r.cube_no);
+      if (!cube.boxMap.has(r.box_no)) {
+        cube.boxMap.set(r.box_no, { box_no: r.box_no, rows: [] });
       }
-      curBox.rows.push(r);
+      cube.boxMap.get(r.box_no).rows.push(r);
     }
-    return cubes;
+    return Array.from(cubeMap.values()).map(cube => ({
+      cube_no: cube.cube_no,
+      boxes: Array.from(cube.boxMap.values()),
+    }));
   }, [rows]);
 
   const q = search.trim().toLowerCase();
