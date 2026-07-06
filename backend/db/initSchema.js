@@ -309,6 +309,36 @@ async function initSchema() {
     // re-run even if the table was already created.
     await conn.query(`ALTER TABLE kit_box_template MODIFY COLUMN item_name_raw VARCHAR(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL`);
 
+    // ── Delivery Challans (Outward) ──────────────────────────────
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS delivery_challans (
+        id                  INT AUTO_INCREMENT PRIMARY KEY,
+        challan_no          VARCHAR(30)  NOT NULL UNIQUE,
+        challan_date        DATE         NOT NULL,
+        party_name          VARCHAR(300) NOT NULL,
+        delivery_address    TEXT         NOT NULL,
+        shipping_party_name VARCHAR(300) NOT NULL,
+        shipping_address    TEXT         NOT NULL,
+        vehicle_number      VARCHAR(100) DEFAULT NULL,
+        status              ENUM('confirmed','cancelled') NOT NULL DEFAULT 'confirmed',
+        created_by          VARCHAR(100) DEFAULT NULL,
+        created_at          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB
+    `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS delivery_challan_items (
+        id         INT AUTO_INCREMENT PRIMARY KEY,
+        challan_id INT         NOT NULL,
+        item_code  VARCHAR(50) NOT NULL,
+        batch_id   INT         NOT NULL,
+        qty        INT         NOT NULL,
+        unit       VARCHAR(50) DEFAULT NULL,
+        FOREIGN KEY (challan_id) REFERENCES delivery_challans(id) ON DELETE CASCADE,
+        FOREIGN KEY (item_code)  REFERENCES items(item_code)        ON DELETE RESTRICT,
+        FOREIGN KEY (batch_id)   REFERENCES stock_batches(batch_id) ON DELETE RESTRICT
+      ) ENGINE=InnoDB
+    `);
+
     console.log("✅ MariaDB schema ready");
   } catch (err) {
     console.error("❌ MariaDB schema init failed:", err.message);

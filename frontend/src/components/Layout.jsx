@@ -15,6 +15,7 @@ const NAV = [
   { to: "/po-status",    icon: "📄", label: "Purchase Orders" },
   { to: "/sub-kits",          icon: "🧩", label: "Sub-Kit Generation" },
   { to: "/cube-box-template", icon: "📐", label: "Cube / Box Template" },
+  { to: "/outward",           icon: "📤", label: "Outward" },
 ];
 
 const ADMIN_NAV = [

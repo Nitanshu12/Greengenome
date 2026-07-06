@@ -20,6 +20,7 @@ import CreateKit from "./pages/CreateKit";
 import POStatus from "./pages/POStatus";
 import SubKitGeneration from "./pages/SubKitGeneration";
 import CubeBoxTemplate from "./pages/CubeBoxTemplate";
+import Outward from "./pages/Outward";
 
 function RequireAuth({ children, adminOnly = false }) {
   const { user } = useAuth();
@@ -55,6 +56,7 @@ export default function App() {
         <Route path="po-status"      element={<POStatus />} />
         <Route path="sub-kits"          element={<SubKitGeneration />} />
         <Route path="cube-box-template" element={<CubeBoxTemplate />} />
+        <Route path="outward"           element={<Outward />} />
         <Route path="admin/upload" element={<RequireAuth adminOnly><AdminUpload /></RequireAuth>} />
         <Route path="admin/users" element={<RequireAuth adminOnly><AdminUsers /></RequireAuth>} />
       </Route>

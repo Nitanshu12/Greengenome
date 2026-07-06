@@ -131,6 +131,13 @@ export const api = {
   updateKitBoxTemplate: (id, body)   => request("PUT",    `/kit-box-template/${id}`, body),
   deleteKitBoxTemplate: (id)         => request("DELETE", `/kit-box-template/${id}`),
 
+  // Outward / Delivery Challans
+  getChallans:             ()           => request("GET",  "/outward"),
+  getOutwardStockPreview:  (item_code)  => request("GET",  `/outward/stock-preview?item_code=${encodeURIComponent(item_code)}`),
+  getChallanDetail:        (id)         => request("GET",  `/outward/${id}`),
+  createChallan:           (body)       => request("POST", "/outward", body),
+  cancelChallan:           (id)         => request("PUT",  `/outward/${id}/cancel`, {}),
+
   // Admin — users
   getUsers:       ()      => request("GET",   "/admin/users"),
   createUser:     (body)  => request("POST",  "/admin/users", body),
