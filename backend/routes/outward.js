@@ -5,7 +5,9 @@ const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
 
-// 80% shelf-life rule, FEFO order — identical to kitAssembly
+// 80% shelf-life rule, FEFO order — identical to kitAssembly. The past-expiry
+// floor is checked unconditionally so a blank mfg_date can never mask a real,
+// already-past expiry_date (see kitAssembly.js for the full explanation).
 const ELIGIBLE_BATCHES_SQL = `
   SELECT batch_id, supplier_batch_no, expiry_date, mfg_date,
          (qty_received - qty_issued) AS available
@@ -13,6 +15,7 @@ const ELIGIBLE_BATCHES_SQL = `
   WHERE item_code = ?
     AND status = 'active'
     AND (qty_received - qty_issued) > 0
+    AND (expiry_date IS NULL OR expiry_date >= CURDATE())
     AND (
       mfg_date IS NULL OR expiry_date IS NULL
       OR (DATEDIFF(expiry_date, CURDATE()) / DATEDIFF(expiry_date, mfg_date) * 100 >= 80)

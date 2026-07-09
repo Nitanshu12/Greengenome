@@ -3,13 +3,18 @@ const router = express.Router();
 const pool = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
 
-// 80% shelf-life rule: only applies when both mfg_date and expiry_date are set.
+// A batch is eligible only if it isn't already past its expiry (checked
+// unconditionally — this floor applies even when mfg_date is missing, so a
+// blank mfg_date can never mask a real, already-past expiry_date), AND
+// separately passes the 80% shelf-life rule whenever both dates are known
+// well enough to compute it.
 const ELIGIBLE_BATCHES_SQL = `
   SELECT batch_id, (qty_received - qty_issued) AS available, mfg_date, expiry_date
   FROM stock_batches
   WHERE item_code = ?
     AND status = 'active'
     AND (qty_received - qty_issued) > 0
+    AND (expiry_date IS NULL OR expiry_date >= CURDATE())
     AND (
       mfg_date IS NULL OR expiry_date IS NULL
       OR (DATEDIFF(expiry_date, CURDATE()) / DATEDIFF(expiry_date, mfg_date) * 100 >= 80)
@@ -586,6 +591,7 @@ router.get("/:kit_id/details", requireLogin, async (req, res) => {
          WHERE item_code IN (${placeholders})
            AND status = 'active'
            AND (qty_received - qty_issued) > 0
+           AND (expiry_date IS NULL OR expiry_date >= CURDATE())
            AND (
              mfg_date IS NULL OR expiry_date IS NULL
              OR (DATEDIFF(expiry_date, CURDATE()) / DATEDIFF(expiry_date, mfg_date) * 100 >= 80)
