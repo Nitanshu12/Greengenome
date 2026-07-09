@@ -581,6 +581,27 @@ body,
   white-space: normal;
 }
 
+/* Kits Information (Packages) table — same fix: wrap long text within a
+   fixed column width instead of overflowing and triggering the horizontal
+   scrollbar. */
+.pkg-items-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.pkg-items-table th,
+.pkg-items-table td {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  vertical-align: top;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+.pkg-items-table th {
+  font-size: 10.5px;
+  white-space: normal;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

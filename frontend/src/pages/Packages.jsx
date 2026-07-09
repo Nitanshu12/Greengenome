@@ -266,7 +266,19 @@ export default function Packages() {
           {filtered.length > 0 && (
             <>
               <div className="table-wrap pkg-table-scroll">
-                <table>
+                <table className="pkg-items-table">
+                  <colgroup>
+                    <col style={{ width: "5%" }} />
+                    <col style={{ width: "5%" }} />
+                    <col style={{ width: "26%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "8%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "8%" }} />
+                    <col style={{ width: "6%" }} />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Cube</th>
