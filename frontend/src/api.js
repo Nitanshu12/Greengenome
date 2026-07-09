@@ -106,6 +106,7 @@ export const api = {
   getKitHistory: ()     => request("GET",  "/kit-assembly/history"),
   getKitDetails: (id)   => request("GET",  `/kit-assembly/${id}/details`),
   cancelKit:     (id)   => request("POST", `/kit-assembly/${id}/cancel`),
+  completeKit:   (id)   => request("POST", `/kit-assembly/${id}/complete`),
 
   // Purchase Orders
   createPO:         (body)       => request("POST",  "/purchase-orders", body),
@@ -137,6 +138,15 @@ export const api = {
   getChallanDetail:        (id)         => request("GET",  `/outward/${id}`),
   createChallan:           (body)       => request("POST", "/outward", body),
   cancelChallan:           (id)         => request("PUT",  `/outward/${id}/cancel`, {}),
+
+  // Inventory Transactions
+  getInventoryTransactions:  ()             => request("GET",    "/inventory-transactions"),
+  getInventoryTransaction:   (id)           => request("GET",    `/inventory-transactions/${id}`),
+  generateInventoryTxn:      (kit_id)       => request("POST",   `/inventory-transactions/generate/${kit_id}`),
+  updateInventoryTxnItem:    (id, itemId, body) => request("PUT",    `/inventory-transactions/${id}/items/${itemId}`, body),
+  addInventoryTxnItem:       (id, body)     => request("POST",   `/inventory-transactions/${id}/items`, body),
+  deleteInventoryTxnItem:    (id, itemId)   => request("DELETE", `/inventory-transactions/${id}/items/${itemId}`),
+  finalizeInventoryTxn:      (id)           => request("POST",   `/inventory-transactions/${id}/finalize`, {}),
 
   // Admin — users
   getUsers:       ()      => request("GET",   "/admin/users"),

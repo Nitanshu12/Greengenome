@@ -515,6 +515,7 @@ export default function CreateKit() {
   const [perKitSectionOpen, setPerKitSectionOpen] = useState({});
   const [history, setHistory] = useState([]);
   const [historyOpen, setHistoryOpen] = useState(true);
+  const [generatingTxnFor, setGeneratingTxnFor] = useState(null);
 
   // Kit detail modal
   const [selectedKit, setSelectedKit] = useState(null);
@@ -526,11 +527,20 @@ export default function CreateKit() {
   const [poTarget, setPoTarget] = useState(null);
   const [combinedPOShortfalls, setCombinedPOShortfalls] = useState(null);
 
+  // Items that already have an open PO (draft/sent) — keyed by item_code —
+  // so shortfall rows can show "PO drafted" instead of letting the user
+  // raise a duplicate order for the same item.
+  const [activePOItems, setActivePOItems] = useState({});
+  const loadActivePOItems = useCallback(() => {
+    api.getActivePOItems().then(d => setActivePOItems(d.data || {})).catch(() => {});
+  }, []);
+
   // Pending shortfalls panel (most recent partial kit)
   const [pendingKit, setPendingKit] = useState(null);
   const [pendingDetail, setPendingDetail] = useState(null);
   const [loadingPending, setLoadingPending] = useState(false);
   const [pendingDismissed, setPendingDismissed] = useState(false);
+  const [completingKit, setCompletingKit] = useState(false);
 
   const loadPendingKit = useCallback(async (historyRows) => {
     const recent = historyRows.find(h => h.status === "partial");
@@ -575,21 +585,26 @@ export default function CreateKit() {
       .catch(() => {});
   }, [loadPendingKit]);
 
+  useEffect(() => { loadActivePOItems(); }, [loadActivePOItems]);
+
   // Re-fetch pending details whenever the user switches back to this tab.
   // Covers the common case: user goes to Stock Batches, adds stock, comes back.
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible" && pendingKit) {
-        setLoadingPending(true);
-        api.getKitDetails(pendingKit.kit_id)
-          .then(data => setPendingDetail(data))
-          .catch(() => {})
-          .finally(() => setLoadingPending(false));
+      if (document.visibilityState === "visible") {
+        loadActivePOItems();
+        if (pendingKit) {
+          setLoadingPending(true);
+          api.getKitDetails(pendingKit.kit_id)
+            .then(data => setPendingDetail(data))
+            .catch(() => {})
+            .finally(() => setLoadingPending(false));
+        }
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [pendingKit]);
+  }, [pendingKit, loadActivePOItems]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -628,6 +643,114 @@ export default function CreateKit() {
     } finally {
       setCancelling(false);
     }
+  };
+
+  const handleCompleteKit = async () => {
+    if (!pendingKit) return;
+    setCompletingKit(true);
+    try {
+      const data = await api.completeKit(pendingKit.kit_id);
+      toast(
+        data.status === "assembled"
+          ? `Kit "${pendingKit.kit_name}" fully assembled!`
+          : `Kit topped up — ${data.remaining_shortfalls.length} item(s) still short`
+      );
+      const refreshed = await api.getKitDetails(pendingKit.kit_id);
+      setPendingDetail(refreshed);
+      api.getKitHistory().then(d => {
+        const rows = d.data || [];
+        setHistory(rows);
+        loadPendingKit(rows);
+      }).catch(() => {});
+    } catch (e) {
+      toast(e.message, "error");
+    } finally {
+      setCompletingKit(false);
+    }
+  };
+
+  const handleGenerateTxn = async (kitRow) => {
+    setGeneratingTxnFor(kitRow.kit_id);
+    try {
+      const data = await api.generateInventoryTxn(kitRow.kit_id);
+      toast(`Inventory transaction #${data.id} generated (${data.row_count} rows${data.flagged_count ? `, ${data.flagged_count} flagged for review` : ""})`);
+      api.getKitHistory().then(d => setHistory(d.data || [])).catch(() => {});
+      navigate("/inventory-transactions");
+    } catch (e) {
+      toast(e.message, "error");
+    } finally {
+      setGeneratingTxnFor(null);
+    }
+  };
+
+  // Shared "Deploy Kit" control — used in the Result phase header and the Kit
+  // Detail modal. Deploying a kit means generating its Inventory Transaction
+  // (the final packed report that pushes into Kits Information), so this is
+  // literally the existing generate/view-transaction flow, just gated on
+  // shortfalls being fully resolved and surfaced as an always-visible button
+  // instead of only appearing once a kit reaches "assembled" in the history table.
+  const renderDeployButton = (kitRow, shortfallCount, small = false) => {
+    if (!isAdmin) return null;
+    const historyEntry = history.find(h => h.kit_id === kitRow.kit_id);
+    const hasTxn = historyEntry?.transaction_id;
+    const isGenerating = generatingTxnFor === kitRow.kit_id;
+    const disabled = shortfallCount > 0;
+
+    if (hasTxn) {
+      return (
+        <button
+          className="btn btn-primary"
+          onClick={() => navigate("/inventory-transactions")}
+          style={{ fontSize: small ? 11 : 12, padding: small ? "2px 10px" : "4px 14px", whiteSpace: "nowrap" }}
+          title={`Transaction #${historyEntry.transaction_id} (${historyEntry.transaction_status})`}
+        >
+          🚀 View Deployment →
+        </button>
+      );
+    }
+    return (
+      <button
+        className="btn btn-primary"
+        disabled={disabled || isGenerating}
+        title={disabled ? `Resolve ${shortfallCount} shortfall item(s) first` : ""}
+        onClick={() => handleGenerateTxn(kitRow)}
+        style={{
+          fontSize: small ? 11 : 12, padding: small ? "2px 10px" : "4px 14px",
+          whiteSpace: "nowrap", opacity: disabled ? 0.5 : 1,
+        }}
+      >
+        {isGenerating ? "Deploying…" : "🚀 Deploy Kit →"}
+      </button>
+    );
+  };
+
+  // Shared "Order" cell — shows a disabled "PO drafted" badge instead of the
+  // Order button when the item already has an open (draft/sent) PO, so the
+  // user can see at a glance that ordering it again would be a duplicate.
+  const renderOrderAction = (row, small = false) => {
+    const poInfo = activePOItems[row.item_code];
+    if (poInfo) {
+      return (
+        <span style={{
+          fontSize: small ? 9 : 10, fontWeight: 700,
+          color: "#92400e", background: "#fef3c7",
+          border: "1px solid #fcd34d",
+          padding: small ? "1px 5px" : "2px 7px", borderRadius: 10,
+          whiteSpace: "nowrap", display: "inline-block",
+        }}>
+          PO: {poInfo.po_number} · {poInfo.status}
+        </span>
+      );
+    }
+    return (
+      <button
+        className="btn btn-ghost btn-sm"
+        onClick={() => setPoTarget(row)}
+        style={small ? { fontSize: 10, padding: "2px 6px", whiteSpace: "nowrap" } : undefined}
+      >
+        Order
+      </button>
+    );
   };
 
   const handleCreate = async () => {
@@ -755,6 +878,7 @@ export default function CreateKit() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+              {isAdmin && !isCancelled && det && renderDeployButton(kitInfo, det.shortfalls?.length || 0, true)}
               {isAdmin && !isCancelled && (
                 <button
                   className="btn btn-ghost"
@@ -1027,9 +1151,19 @@ export default function CreateKit() {
                   <span style={{ color: "#dc2626" }}>⚠ {stillShort.length} still need ordering</span>
                 )}
                 {nowCoverable.length > 0 && (
-                  <span style={{ color: "#15803d" }}>✓ {nowCoverable.length} now in stock — reorder kit to allocate</span>
+                  <span style={{ color: "#15803d" }}>✓ {nowCoverable.length} now in stock</span>
                 )}
               </span>
+              {nowCoverable.length > 0 && (
+                <button
+                  className="btn btn-primary"
+                  onClick={handleCompleteKit}
+                  disabled={completingKit}
+                  style={{ fontSize: 11, padding: "2px 10px", whiteSpace: "nowrap" }}
+                >
+                  {completingKit ? "Completing…" : "Complete Kit →"}
+                </button>
+              )}
               {stillShort.length > 0 && (
                 <button
                   className="btn btn-ghost"
@@ -1126,15 +1260,7 @@ export default function CreateKit() {
                           )}
                         </td>
                         <td style={{ padding: "5px 4px", textAlign: "center" }}>
-                          {!row.now_coverable && (
-                            <button
-                              className="btn btn-ghost btn-sm"
-                              onClick={() => setPoTarget(row)}
-                              style={{ fontSize: 10, padding: "2px 6px", whiteSpace: "nowrap" }}
-                            >
-                              Order
-                            </button>
-                          )}
+                          {!row.now_coverable && renderOrderAction(row, true)}
                         </td>
                       </tr>
                     ))}
@@ -1234,13 +1360,36 @@ export default function CreateKit() {
                         </td>
                         <td style={{ color: "var(--muted)", fontSize: 12 }}>{h.notes || "—"}</td>
                         <td>
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => handleViewKit(h)}
-                            style={{ fontSize: 12, padding: "3px 10px" }}
-                          >
-                            View
-                          </button>
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => handleViewKit(h)}
+                              style={{ fontSize: 12, padding: "3px 10px" }}
+                            >
+                              View
+                            </button>
+                            {isAdmin && h.status === "assembled" && (
+                              h.transaction_id ? (
+                                <button
+                                  className="btn btn-ghost btn-sm"
+                                  onClick={() => navigate("/inventory-transactions")}
+                                  style={{ fontSize: 12, padding: "3px 10px" }}
+                                  title={`Transaction #${h.transaction_id} (${h.transaction_status})`}
+                                >
+                                  🧾 View Txn
+                                </button>
+                              ) : (
+                                <button
+                                  className="btn btn-primary btn-sm"
+                                  onClick={() => handleGenerateTxn(h)}
+                                  disabled={generatingTxnFor === h.kit_id}
+                                  style={{ fontSize: 12, padding: "3px 10px" }}
+                                >
+                                  {generatingTxnFor === h.kit_id ? "Generating…" : "🧾 Generate Transaction"}
+                                </button>
+                              )
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1263,10 +1412,10 @@ export default function CreateKit() {
       <>
         <KitDetailModal />
         {poTarget && (
-          <VendorSelectModal item={poTarget} onClose={() => setPoTarget(null)} toast={toast} />
+          <VendorSelectModal item={poTarget} onClose={() => { setPoTarget(null); loadActivePOItems(); }} toast={toast} />
         )}
         {combinedPOShortfalls && (
-          <CombinedOrderModal shortfalls={combinedPOShortfalls} onClose={() => setCombinedPOShortfalls(null)} toast={toast} />
+          <CombinedOrderModal shortfalls={combinedPOShortfalls} onClose={() => { setCombinedPOShortfalls(null); loadActivePOItems(); }} toast={toast} />
         )}
 
         <div className="page-header">
@@ -1402,10 +1551,10 @@ export default function CreateKit() {
     <>
       <KitDetailModal />
       {poTarget && (
-        <VendorSelectModal item={poTarget} onClose={() => setPoTarget(null)} toast={toast} />
+        <VendorSelectModal item={poTarget} onClose={() => { setPoTarget(null); loadActivePOItems(); }} toast={toast} />
       )}
       {combinedPOShortfalls && (
-        <CombinedOrderModal shortfalls={combinedPOShortfalls} onClose={() => setCombinedPOShortfalls(null)} toast={toast} />
+        <CombinedOrderModal shortfalls={combinedPOShortfalls} onClose={() => { setCombinedPOShortfalls(null); loadActivePOItems(); }} toast={toast} />
       )}
 
       <div className="page-header" style={{ flexWrap: "wrap", gap: 12 }}>
@@ -1423,9 +1572,12 @@ export default function CreateKit() {
             )}
           </div>
         </div>
-        <button className="btn btn-ghost" onClick={handleCreateAnother}>
-          ← Create Another Kit
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {renderDeployButton(result, result.shortfalls?.length || 0)}
+          <button className="btn btn-ghost" onClick={handleCreateAnother}>
+            ← Create Another Kit
+          </button>
+        </div>
       </div>
 
       {/* Per-Kit Breakdown — only when more than one kit was requested */}
@@ -1751,12 +1903,7 @@ export default function CreateKit() {
                           </span>
                         </td>
                         <td>
-                          <button
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => setPoTarget(row)}
-                          >
-                            Order
-                          </button>
+                          {renderOrderAction(row)}
                         </td>
                       </tr>
                     ))}

@@ -57,6 +57,184 @@ function consume(p, qty) {
   return usage;
 }
 
+// Tops up a single 'partial' kit once new stock has arrived — re-runs FEFO
+// allocation, but ONLY for each BOM line's outstanding shortfall
+// (totalRequired - alreadyAllocated), never touching what was already
+// allocated. Flips the kit to 'assembled' if every line closes, otherwise
+// stays 'partial' with whatever remains short. Manages its own transaction
+// on the given connection so it can be called standalone (manual "Complete
+// Kit" button) or in a loop, one kit per connection (auto-completion after
+// a stock receipt).
+async function completePartialKit(conn, kitId) {
+  await conn.query("START TRANSACTION");
+
+  // Lock the kit row so two concurrent completions (manual click + auto
+  // trigger, or two auto triggers) can't both read the same already-allocated
+  // snapshot and double-consume the same stock.
+  const [[kit]] = await conn.query(
+    "SELECT kit_id, kit_name, qty_kits, status FROM assembled_kits WHERE kit_id = ? FOR UPDATE",
+    [kitId]
+  );
+  if (!kit) {
+    await conn.query("ROLLBACK");
+    return { ok: false, code: 404, error: "Kit not found" };
+  }
+  if (kit.status !== "partial") {
+    await conn.query("ROLLBACK");
+    return { ok: false, code: 400, error: `Kit is ${kit.status} — nothing to complete` };
+  }
+
+  // What's already allocated, per raw item_code (sub-kit and standalone
+  // claims both land here, same as /:kit_id/details).
+  const [allocRows] = await conn.query(
+    `SELECT item_code, SUM(qty_allocated) AS allocated_qty FROM kit_allocations WHERE kit_id = ? GROUP BY item_code`,
+    [kit.kit_id]
+  );
+  const allocatedMap = {};
+  for (const r of allocRows) allocatedMap[r.item_code] = Number(r.allocated_qty);
+
+  const [bomRows] = await conn.query(
+    `SELECT bd.item_code, bd.item_name, bd.required_qty, COALESCE(i.is_subkit, 0) AS is_subkit
+     FROM bom_disaster bd
+     LEFT JOIN items i ON i.item_code = bd.item_code
+     ORDER BY bd.item_code`
+  );
+
+  const pools = makePoolCache(conn);
+  const writes = [];
+  const stillShort = [];
+  let closedCount = 0;
+
+  for (const bom of bomRows) {
+    const totalRequired = bom.required_qty * kit.qty_kits;
+
+    if (!bom.is_subkit) {
+      const already = allocatedMap[bom.item_code] || 0;
+      const stillNeeded = totalRequired - already;
+      if (stillNeeded <= 0) continue; // this line already fully closed — leave it alone
+
+      const p = await pools.get(bom.item_code);
+      const usage = consume(p, stillNeeded);
+      const gained = usage.reduce((s, u) => s + u.qty, 0);
+      for (const u of usage) writes.push({ item_code: bom.item_code, batch_id: u.batch_id, qty: u.qty });
+
+      if (gained >= stillNeeded) closedCount++;
+      else stillShort.push({ item_code: bom.item_code, item_name: bom.item_name, shortfall_qty: stillNeeded - gained });
+      continue;
+    }
+
+    // Sub-kit — same two-phase approach as /create (peek every component's
+    // buildable count, then commit the scarcest-limited amount), but only
+    // for the ADDITIONAL kits still needed beyond what's already built.
+    const [components] = await conn.query(
+      `SELECT sc.component_item_code, sc.qty_per_unit, i.name AS component_name
+       FROM sub_kit_components sc
+       JOIN items i ON i.item_code = sc.component_item_code
+       WHERE sc.sub_kit_item_code = ?`,
+      [bom.item_code]
+    );
+
+    let alreadyBuilt = components.length ? Infinity : 0;
+    for (const c of components) {
+      const already = allocatedMap[c.component_item_code] || 0;
+      alreadyBuilt = Math.min(alreadyBuilt, Math.floor(already / c.qty_per_unit));
+    }
+    if (alreadyBuilt === Infinity) alreadyBuilt = 0;
+
+    const stillNeededKits = totalRequired - alreadyBuilt;
+    if (stillNeededKits <= 0) continue;
+
+    let maxBuildable = stillNeededKits;
+    for (const comp of components) {
+      const p = await pools.get(comp.component_item_code);
+      const buildableFromThis = Math.floor(peekAvailable(p) / comp.qty_per_unit);
+      maxBuildable = Math.min(maxBuildable, buildableFromThis);
+    }
+    maxBuildable = Math.max(0, maxBuildable);
+
+    for (const comp of components) {
+      const needQty = comp.qty_per_unit * maxBuildable;
+      const p = await pools.get(comp.component_item_code);
+      const usage = needQty > 0 ? consume(p, needQty) : [];
+      for (const u of usage) writes.push({ item_code: comp.component_item_code, batch_id: u.batch_id, qty: u.qty });
+    }
+
+    if (maxBuildable >= stillNeededKits) closedCount++;
+    else stillShort.push({ item_code: bom.item_code, item_name: bom.item_name, shortfall_qty: stillNeededKits - maxBuildable, is_subkit: true });
+  }
+
+  if (!writes.length) {
+    await conn.query("ROLLBACK");
+    return {
+      ok: false, code: 400, error: "No additional stock is available yet for this kit's shortfalls",
+      changed: false, kit_id: kit.kit_id, kit_name: kit.kit_name,
+    };
+  }
+
+  for (const w of writes) {
+    await conn.query(
+      `INSERT INTO kit_allocations (kit_id, item_code, batch_id, qty_allocated) VALUES (?, ?, ?, ?)`,
+      [kit.kit_id, w.item_code, w.batch_id, w.qty]
+    );
+    await conn.query(
+      `UPDATE stock_batches SET qty_issued = qty_issued + ? WHERE batch_id = ?`,
+      [w.qty, w.batch_id]
+    );
+  }
+
+  const newStatus = stillShort.length > 0 ? "partial" : "assembled";
+  await conn.query("UPDATE assembled_kits SET status = ? WHERE kit_id = ?", [newStatus, kit.kit_id]);
+
+  await conn.query("COMMIT");
+  return {
+    ok: true, changed: true,
+    kit_id: kit.kit_id,
+    kit_name: kit.kit_name,
+    status: newStatus,
+    items_completed: closedCount,
+    remaining_shortfalls: stillShort,
+  };
+}
+
+// Runs completePartialKit() over every currently-partial kit — called after
+// new stock lands (PO receipt or manual batch add) so shortfalls resolve
+// automatically with zero clicks. Each kit gets its own connection and
+// transaction, so one kit's failure can't roll back another kit's update or
+// the stock receipt that triggered this pass. Returns only the kits that
+// actually changed.
+async function autoCompletePartialKits() {
+  const listConn = await pool.getConnection();
+  let kitIds;
+  try {
+    const [rows] = await listConn.query("SELECT kit_id FROM assembled_kits WHERE status = 'partial'");
+    kitIds = rows.map(r => r.kit_id);
+  } finally {
+    listConn.release();
+  }
+
+  const updated = [];
+  for (const kitId of kitIds) {
+    const conn = await pool.getConnection();
+    try {
+      const result = await completePartialKit(conn, kitId);
+      if (result.ok && result.changed) {
+        updated.push({
+          kit_id: result.kit_id,
+          kit_name: result.kit_name,
+          status: result.status,
+          items_completed: result.items_completed,
+          remaining_shortfalls: result.remaining_shortfalls,
+        });
+      }
+    } catch (err) {
+      console.error(`Auto-completion failed for kit #${kitId}:`, err.message);
+    } finally {
+      conn.release();
+    }
+  }
+  return updated;
+}
+
 // POST /api/kit-assembly/create
 // Assembles a kit: expands sub-kit BOM lines into their raw components,
 // allocates everything FEFO (earliest expiry first, 80%-rule applied),
@@ -241,10 +419,16 @@ router.post("/create", requireRole("admin", "superadmin"), async (req, res) => {
 router.get("/history", requireLogin, async (req, res) => {
   const conn = await pool.getConnection();
   try {
+    // LEFT JOIN so the UI can tell whether an assembled kit already has an
+    // inventory transaction generated (and disable "Generate" to avoid the
+    // duplicate the DB's uq_kit_status constraint would reject anyway).
     const [rows] = await conn.query(
-      `SELECT kit_id, kit_name, qty_kits, assembled_by, notes, status, created_at
-       FROM assembled_kits
-       ORDER BY created_at DESC
+      `SELECT ak.kit_id, ak.kit_name, ak.qty_kits, ak.assembled_by, ak.notes, ak.status, ak.created_at,
+              it.id AS transaction_id, it.status AS transaction_status
+       FROM assembled_kits ak
+       LEFT JOIN inventory_transactions it
+         ON it.kit_id = ak.kit_id AND it.status != 'cancelled'
+       ORDER BY ak.created_at DESC
        LIMIT 50`
     );
     res.json({ data: rows });
@@ -444,6 +628,30 @@ router.get("/:kit_id/details", requireLogin, async (req, res) => {
   }
 });
 
+// POST /api/kit-assembly/:kit_id/complete
+// Manual fallback for completePartialKit() — normally shortfalls resolve on
+// their own via autoCompletePartialKits() right after stock is received, but
+// this stays available for edge cases (e.g. stock that arrived before this
+// feature existed, or a retry after a transient failure).
+router.post("/:kit_id/complete", requireRole("admin", "superadmin"), async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const result = await completePartialKit(conn, req.params.kit_id);
+    if (!result.ok) return res.status(result.code).json({ error: result.error });
+    res.json({
+      kit_id: result.kit_id,
+      status: result.status,
+      items_completed: result.items_completed,
+      remaining_shortfalls: result.remaining_shortfalls,
+    });
+  } catch (err) {
+    console.error("Kit completion error:", err.message);
+    res.status(500).json({ error: err.message || "Completion failed" });
+  } finally {
+    conn.release();
+  }
+});
+
 // POST /api/kit-assembly/:kit_id/cancel
 router.post("/:kit_id/cancel", requireRole("admin", "superadmin"), async (req, res) => {
   const conn = await pool.getConnection();
@@ -491,3 +699,4 @@ router.post("/:kit_id/cancel", requireRole("admin", "superadmin"), async (req, r
 });
 
 module.exports = router;
+module.exports.autoCompletePartialKits = autoCompletePartialKits;

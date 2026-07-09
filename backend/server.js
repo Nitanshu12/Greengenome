@@ -143,6 +143,7 @@ app.use("/api/purchase-orders",  require("./routes/purchaseOrders"));
 app.use("/api/sub-kits",         require("./routes/subKits"));
 app.use("/api/kit-box-template", require("./routes/kitBoxTemplate"));
 app.use("/api/outward",          require("./routes/outward"));
+app.use("/api/inventory-transactions", require("./routes/inventoryTransactions"));
 app.use("/api",                  require("./routes/kits"));
 
 

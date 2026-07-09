@@ -215,6 +215,15 @@ function BatchDocsModal({ batch, isAdmin, onClose, toast }) {
   );
 }
 
+// Appends a note about any partial kits that this stock receipt auto-completed,
+// so the toast tells the user their shortfall was resolved without them having
+// to go check the Create Kit page.
+function kitsUpdatedSuffix(kits) {
+  if (!kits || kits.length === 0) return "";
+  const names = kits.map(k => `"${k.kit_name}" (${k.status === "assembled" ? "fully assembled!" : "topped up"})`);
+  return ` · ${kits.length} kit${kits.length !== 1 ? "s" : ""} auto-completed: ${names.join(", ")}`;
+}
+
 const STATUS_STYLE = {
   active: { background: "#d1fae5", color: "#065f46" },
   expired: { background: "#fee2e2", color: "#991b1b" },
@@ -335,13 +344,13 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
           qty_received: Number(itemStatuses[i.item_code].qty_received),
           po_qty:       i.quantity,
         }));
-      await api.receivePO({
+      const data = await api.receivePO({
         po_id:            selectedPO.id,
         storage_location: storageLocation || null,
         remarks:          remarks || null,
         items,
       });
-      toast(`Receipt recorded — ${items.length} batch${items.length !== 1 ? "es" : ""} created`);
+      toast(`Receipt recorded — ${items.length} batch${items.length !== 1 ? "es" : ""} created${kitsUpdatedSuffix(data.kits_updated)}`);
       onSuccess();
     } catch (e) {
       toast(e.message, "error");
@@ -770,8 +779,8 @@ export default function StockBatches() {
         });
         toast("Batch updated");
       } else {
-        await api.createStockBatch(form);
-        toast("Goods receipt recorded");
+        const data = await api.createStockBatch(form);
+        toast(`Goods receipt recorded${kitsUpdatedSuffix(data.kits_updated)}`);
       }
       setShowForm(false);
       setEditTarget(null);

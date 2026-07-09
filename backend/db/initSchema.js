@@ -339,6 +339,60 @@ async function initSchema() {
       ) ENGINE=InnoDB
     `);
 
+    // ── Inventory Transactions (post-deployment packing list) ────
+    // Generated from a fully-assembled kit by merging kit_box_template
+    // (which item goes in which cube/box) with kit_allocations (which real
+    // stock batch was actually issued for that item) — see
+    // routes/inventoryTransactions.js for the merge algorithm. Rows are a
+    // free-editable draft (admin can add/edit/delete) until finalized, so
+    // item_code/batch_id are soft references (no FK) — deleting an item or
+    // batch later must never break an already-generated draft.
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS inventory_transactions (
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        kit_id        INT NOT NULL,
+        kit_name      VARCHAR(200) NOT NULL,
+        qty_kits      INT NOT NULL DEFAULT 1,
+        status        ENUM('draft','finalized','cancelled') NOT NULL DEFAULT 'draft',
+        flagged_count INT NOT NULL DEFAULT 0,
+        generated_by  VARCHAR(100) DEFAULT NULL,
+        created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        finalized_at  TIMESTAMP NULL DEFAULT NULL,
+        FOREIGN KEY (kit_id) REFERENCES assembled_kits(kit_id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS inventory_transaction_items (
+        id             INT AUTO_INCREMENT PRIMARY KEY,
+        transaction_id INT NOT NULL,
+        row_order      INT NOT NULL,
+        cube_no        VARCHAR(50)  DEFAULT NULL,
+        box_no         VARCHAR(50)  DEFAULT NULL,
+        item_code      VARCHAR(50)  DEFAULT NULL,
+        item_name      VARCHAR(500) DEFAULT NULL,
+        brand          VARCHAR(200) DEFAULT NULL,
+        oem            VARCHAR(200) DEFAULT NULL,
+        item_type      VARCHAR(100) DEFAULT NULL,
+        batch_id       INT          DEFAULT NULL,
+        batch_no       VARCHAR(100) DEFAULT NULL,
+        expiry_date    DATE         DEFAULT NULL,
+        document_name  VARCHAR(200) DEFAULT NULL,
+        document_url   TEXT         DEFAULT NULL,
+        is_flagged     TINYINT(1)   NOT NULL DEFAULT 0,
+        FOREIGN KEY (transaction_id) REFERENCES inventory_transactions(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    // One non-cancelled draft per kit — prevents duplicate generation from a
+    // double-click or a second admin racing the same "Generate" button.
+    try {
+      await conn.query(`
+        ALTER TABLE inventory_transactions
+          ADD UNIQUE KEY uq_kit_status (kit_id, status)
+      `);
+    } catch (e) {
+      if (!e.message.includes('Duplicate key name')) throw e;
+    }
+
     console.log("✅ MariaDB schema ready");
   } catch (err) {
     console.error("❌ MariaDB schema init failed:", err.message);

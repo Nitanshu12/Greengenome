@@ -561,6 +561,26 @@ body,
   font-size: 9.5px;
 }
 
+/* Inventory Transactions draft table — fits the viewport width with no
+   horizontal scrollbar by wrapping long text instead of truncating/overflowing. */
+.txn-items-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.txn-items-table th,
+.txn-items-table td {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  vertical-align: top;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+.txn-items-table th {
+  font-size: 10.5px;
+  white-space: normal;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

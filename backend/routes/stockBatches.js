@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const pool = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
+const { autoCompletePartialKits } = require("./kitAssembly");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
 
@@ -152,7 +153,17 @@ router.post("/", ...adminOnly, async (req, res) => {
         }
       }
 
-      res.status(201).json({ msg: "Stock batch created", batch_id: result.insertId });
+      // Try to auto-close any partial kit this new stock now covers. Runs
+      // after the batch insert but on its own connections/transactions, so a
+      // failure here never undoes the stock receipt that just committed.
+      let kitsUpdated = [];
+      try {
+        kitsUpdated = await autoCompletePartialKits();
+      } catch (autoErr) {
+        console.error("Auto kit-completion after stock batch create failed:", autoErr.message);
+      }
+
+      res.status(201).json({ msg: "Stock batch created", batch_id: result.insertId, kits_updated: kitsUpdated });
     } finally {
       conn.release();
     }
@@ -225,7 +236,23 @@ router.post("/receive-po", ...adminOnly, async (req, res) => {
     );
 
     await conn.query("COMMIT");
-    res.status(201).json({ batches_created: batchIds.length, batch_ids: batchIds, po_status: newStatus });
+
+    // Same auto-completion pass as the single-batch endpoint — a PO receipt
+    // is the main way shortfalls get resolved, so this is the primary path
+    // for zero-click kit completion.
+    let kitsUpdated = [];
+    try {
+      kitsUpdated = await autoCompletePartialKits();
+    } catch (autoErr) {
+      console.error("Auto kit-completion after PO receipt failed:", autoErr.message);
+    }
+
+    res.status(201).json({
+      batches_created: batchIds.length,
+      batch_ids: batchIds,
+      po_status: newStatus,
+      kits_updated: kitsUpdated,
+    });
   } catch (err) {
     await conn.query("ROLLBACK");
     res.status(500).json({ error: err.message });
