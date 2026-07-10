@@ -677,6 +677,21 @@ router.post("/:kit_id/cancel", requireRole("admin", "superadmin"), async (req, r
       return res.status(400).json({ error: "Kit is already cancelled" });
     }
 
+    // Once deployed (an Inventory Transaction exists), the allocation is the
+    // audited basis for what was packed/shipped — reversing it here would
+    // silently invalidate that record. Block at the API level too, not just
+    // in the UI, since this route can be called directly.
+    const [[activeTxn]] = await conn.query(
+      "SELECT id, status FROM inventory_transactions WHERE kit_id = ? AND status != 'cancelled' LIMIT 1",
+      [req.params.kit_id]
+    );
+    if (activeTxn) {
+      await conn.query("ROLLBACK");
+      return res.status(400).json({
+        error: `Kit #${req.params.kit_id} has already been deployed (Inventory Transaction #${activeTxn.id}, ${activeTxn.status}) — cancel is disabled once a kit is deployed.`,
+      });
+    }
+
     // Get allocations and reverse qty_issued on each batch
     const [allocations] = await conn.query(
       "SELECT batch_id, qty_allocated FROM kit_allocations WHERE kit_id = ?",

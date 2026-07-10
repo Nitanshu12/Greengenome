@@ -825,6 +825,8 @@ export default function CreateKit() {
     const det = kitDetail;
     const kitInfo = det?.kit || selectedKit;
     const isCancelled = kitInfo.status === "cancelled";
+    const historyEntry = history.find(h => h.kit_id === kitInfo.kit_id);
+    const isDeployed = !!historyEntry?.transaction_id;
 
     return (
       <div
@@ -879,7 +881,7 @@ export default function CreateKit() {
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
               {isAdmin && !isCancelled && det && renderDeployButton(kitInfo, det.shortfalls?.length || 0, true)}
-              {isAdmin && !isCancelled && (
+              {isAdmin && !isCancelled && !isDeployed && (
                 <button
                   className="btn btn-ghost"
                   onClick={handleCancelKit}
@@ -888,6 +890,11 @@ export default function CreateKit() {
                 >
                   {cancelling ? "Cancelling…" : "Cancel Kit"}
                 </button>
+              )}
+              {isAdmin && !isCancelled && isDeployed && (
+                <span style={{ fontSize: 12, color: "var(--muted)" }} title="Cancel is disabled once a kit is deployed">
+                  Deployed — cannot cancel
+                </span>
               )}
               <button
                 onClick={() => setSelectedKit(null)}

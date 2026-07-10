@@ -306,35 +306,6 @@ router.put("/:id/items/:item_id", ...adminOnly, async (req, res) => {
   }
 });
 
-// POST /api/inventory-transactions/:id/items  (admin) — add a manual row
-router.post("/:id/items", ...adminOnly, async (req, res) => {
-  try {
-    const [[txn]] = await pool.query(`SELECT status FROM inventory_transactions WHERE id = ?`, [req.params.id]);
-    if (!txn) return res.status(404).json({ error: "Transaction not found" });
-    if (txn.status !== "draft") return res.status(400).json({ error: `Cannot edit a ${txn.status} transaction` });
-
-    const { cube_no, box_no, item_name, brand, oem, item_type, batch_no, expiry_date, document_name, document_url } = req.body;
-    if (!item_name || !item_name.trim()) return res.status(400).json({ error: "Item name is required" });
-
-    const [[{ maxOrder }]] = await pool.query(
-      `SELECT COALESCE(MAX(row_order), -1) AS maxOrder FROM inventory_transaction_items WHERE transaction_id = ?`,
-      [req.params.id]
-    );
-
-    await pool.query(
-      `INSERT INTO inventory_transaction_items
-         (transaction_id, row_order, cube_no, box_no, item_name, brand, oem, item_type, batch_no, expiry_date, document_name, document_url, is_flagged)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-      [req.params.id, maxOrder + 1, cube_no || null, box_no || null, item_name.trim(), brand || null,
-       oem || null, item_type || null, batch_no || null, expiry_date || null, document_name || null, document_url || null]
-    );
-    await refreshFlaggedCount(req.params.id);
-    res.status(201).json({ msg: "Row added" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // DELETE /api/inventory-transactions/:id/items/:item_id  (admin)
 router.delete("/:id/items/:item_id", ...adminOnly, async (req, res) => {
   try {
@@ -351,6 +322,167 @@ router.delete("/:id/items/:item_id", ...adminOnly, async (req, res) => {
     res.json({ msg: "Row deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/inventory-transactions/:id/sync  (admin)
+// Re-checks two things that can drift after a transaction was generated:
+// (1) a row's batch may have since been recalled/expired/quarantined in
+//     stock_batches.status — flagged as batch_status_warning, distinct from
+//     is_flagged (which means the original allocation itself came up short);
+// (2) a row with no document yet may have one (or several) now, if uploaded
+//     to Items Master or the batch after generation. Only backfills rows
+//     that are currently empty — never overwrites a document already set.
+//     If more than one document now matches, the extra ones become new
+//     system-generated rows cloned from the original (same cube/box/item/
+//     batch/expiry) — mirroring exactly what buildDraftRows does at
+//     generation time for an item that already had multiple documents. This
+//     is not the manual "Add Row" removed earlier: every field is sourced
+//     from real data (item_code/batch_id/item_documents), never typed in.
+// Works on draft or finalized transactions (not cancelled). For a finalized
+// transaction, changes are also patched into the Mongo KitFile snapshot so
+// Packages.jsx picks them up — matched by (cube, box, item, batch) content
+// rather than array index, since deleted draft rows would have left gaps in
+// row_order that no longer line up with KitFile.data.
+router.post("/:id/sync", ...adminOnly, async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const [[txn]] = await conn.query(`SELECT * FROM inventory_transactions WHERE id = ?`, [req.params.id]);
+    if (!txn) return res.status(404).json({ error: "Transaction not found" });
+    if (txn.status === "cancelled") return res.status(400).json({ error: "Cannot sync a cancelled transaction" });
+
+    const [items] = await conn.query(
+      `SELECT * FROM inventory_transaction_items WHERE transaction_id = ?`,
+      [req.params.id]
+    );
+
+    let docsUpdated = 0, rowsAdded = 0, warningsSet = 0, warningsCleared = 0;
+    // { cube_no, box_no, item_name, batch_no, document_name, document_url, isNewRow }
+    const docChanges = [];
+
+    for (const it of items) {
+      let newWarning = 0;
+      if (it.batch_id) {
+        const [[batch]] = await conn.query(
+          "SELECT status FROM stock_batches WHERE batch_id = ?", [it.batch_id]
+        );
+        newWarning = batch && batch.status !== "active" ? 1 : 0;
+      }
+
+      const warnChanged = newWarning !== (it.batch_status_warning || 0);
+      if (warnChanged) {
+        await conn.query(
+          "UPDATE inventory_transaction_items SET batch_status_warning = ? WHERE id = ?",
+          [newWarning, it.id]
+        );
+        if (newWarning) warningsSet++; else warningsCleared++;
+      }
+
+      if (it.document_name || it.document_url) continue; // already has one — never overwrite
+
+      // Gather every currently-available document for this row's item/batch,
+      // oldest first, same combination buildDraftRows uses at generation time.
+      const docs = [];
+      if (it.batch_id) {
+        const [batchDocs] = await conn.query(
+          "SELECT document_name, document_url FROM stock_batch_documents WHERE batch_id = ? ORDER BY created_at ASC",
+          [it.batch_id]
+        );
+        docs.push(...batchDocs);
+      }
+      if (it.item_code) {
+        const [itemDocs] = await conn.query(
+          "SELECT document_name, document_url FROM item_documents WHERE item_code = ? ORDER BY created_at ASC",
+          [it.item_code]
+        );
+        docs.push(...itemDocs);
+      }
+      if (!docs.length) continue;
+
+      const [first, ...rest] = docs;
+      await conn.query(
+        "UPDATE inventory_transaction_items SET document_name = ?, document_url = ? WHERE id = ?",
+        [first.document_name, first.document_url, it.id]
+      );
+      docsUpdated++;
+      docChanges.push({
+        cube_no: it.cube_no, box_no: it.box_no, item_name: it.item_name, batch_no: it.batch_no,
+        document_name: first.document_name, document_url: first.document_url, isNewRow: false,
+      });
+
+      for (const extra of rest) {
+        await conn.query(
+          `INSERT INTO inventory_transaction_items
+             (transaction_id, row_order, cube_no, box_no, item_code, item_name, brand, oem, item_type,
+              batch_id, batch_no, expiry_date, document_name, document_url, is_flagged, batch_status_warning)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [txn.id, it.row_order, it.cube_no, it.box_no, it.item_code, it.item_name, it.brand, it.oem, it.item_type,
+           it.batch_id, it.batch_no, it.expiry_date, extra.document_name, extra.document_url, it.is_flagged, newWarning]
+        );
+        docsUpdated++;
+        rowsAdded++;
+        docChanges.push({
+          cube_no: it.cube_no, box_no: it.box_no, item_name: it.item_name, batch_no: it.batch_no,
+          document_name: extra.document_name, document_url: extra.document_url, isNewRow: true,
+        });
+      }
+    }
+
+    if (txn.status === "draft" && rowsAdded > 0) await refreshFlaggedCount(req.params.id);
+
+    if (txn.status === "finalized" && docChanges.length > 0) {
+      const kitFile = await KitFile.findOne({ kitName: txn.kit_name });
+      if (kitFile) {
+        for (const chg of docChanges) {
+          const matchKey = row =>
+            (row.cube || "") === (chg.cube_no || "") &&
+            (row.box || "") === (chg.box_no || "") &&
+            (row.items || "") === (chg.item_name || "") &&
+            (row.batchNo || "") === (chg.batch_no || "");
+
+          if (!chg.isNewRow) {
+            const idx = kitFile.data.findIndex(row => matchKey(row) && !row.document && !row.link);
+            if (idx !== -1) {
+              kitFile.data[idx].document = chg.document_name || "";
+              kitFile.data[idx].link = chg.document_url || "";
+            }
+            continue;
+          }
+
+          const idx = kitFile.data.findIndex(matchKey);
+          const anchor = idx !== -1 ? kitFile.data[idx] : {};
+          const newEntry = {
+            rowNo: kitFile.data.length + 1,
+            cube: chg.cube_no || "", box: chg.box_no || "",
+            items: chg.item_name || "", brand: anchor.brand || "", oem: anchor.oem || "",
+            itemType: anchor.itemType || "", expiry: anchor.expiry || "", batchNo: chg.batch_no || "",
+            document: chg.document_name || "", link: chg.document_url || "",
+          };
+          if (idx !== -1) kitFile.data.splice(idx + 1, 0, newEntry);
+          else kitFile.data.push(newEntry);
+        }
+
+        kitFile.data.forEach((row, i) => { row.rowNo = i + 1; });
+        kitFile.rowCount = kitFile.data.length;
+        const summaryStats = summarizeKitData(kitFile.data);
+        kitFile.summaryStats = {
+          brandCounts: summaryStats.brandCounts,
+          expired: summaryStats.expired,
+          warning: summaryStats.warning,
+        };
+        kitFile.markModified("data");
+        await kitFile.save();
+      }
+    }
+
+    res.json({
+      msg: `Synced — ${docsUpdated} document(s) updated${rowsAdded > 0 ? ` (${rowsAdded} new row(s) added for extra documents)` : ""}, ${warningsSet} batch warning(s) flagged, ${warningsCleared} cleared`,
+    });
+  } catch (err) {
+    console.error("Sync error:", err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
   }
 });
 

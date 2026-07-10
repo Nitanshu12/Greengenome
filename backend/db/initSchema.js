@@ -393,6 +393,18 @@ async function initSchema() {
       if (!e.message.includes('Duplicate key name')) throw e;
     }
 
+    // Set by the /sync endpoint when a row's batch is no longer 'active'
+    // (recalled/expired/quarantined) after it was already allocated — distinct
+    // from is_flagged, which means the FEFO allocation itself came up short.
+    try {
+      await conn.query(`
+        ALTER TABLE inventory_transaction_items
+          ADD COLUMN batch_status_warning TINYINT(1) NOT NULL DEFAULT 0
+      `);
+    } catch (e) {
+      if (!e.message.includes('Duplicate column name')) throw e;
+    }
+
     console.log("✅ MariaDB schema ready");
   } catch (err) {
     console.error("❌ MariaDB schema init failed:", err.message);

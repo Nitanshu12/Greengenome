@@ -144,9 +144,9 @@ export const api = {
   getInventoryTransaction:   (id)           => request("GET",    `/inventory-transactions/${id}`),
   generateInventoryTxn:      (kit_id)       => request("POST",   `/inventory-transactions/generate/${kit_id}`),
   updateInventoryTxnItem:    (id, itemId, body) => request("PUT",    `/inventory-transactions/${id}/items/${itemId}`, body),
-  addInventoryTxnItem:       (id, body)     => request("POST",   `/inventory-transactions/${id}/items`, body),
   deleteInventoryTxnItem:    (id, itemId)   => request("DELETE", `/inventory-transactions/${id}/items/${itemId}`),
   finalizeInventoryTxn:      (id)           => request("POST",   `/inventory-transactions/${id}/finalize`, {}),
+  syncInventoryTxn:          (id)           => request("POST",   `/inventory-transactions/${id}/sync`, {}),
 
   // Admin — users
   getUsers:       ()      => request("GET",   "/admin/users"),
