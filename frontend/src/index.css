@@ -602,6 +602,27 @@ body,
   white-space: normal;
 }
 
+/* Create Kit — Allocated/Shortfall Items tables — same fix: wrap long text
+   within fixed column widths instead of overflowing and triggering a
+   horizontal scrollbar. */
+.kit-alloc-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.kit-alloc-table th,
+.kit-alloc-table td {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  vertical-align: top;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+.kit-alloc-table th {
+  font-size: 10.5px;
+  white-space: normal;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

@@ -935,8 +935,15 @@ export default function CreateKit() {
                         {det.allocated.length} items
                       </span>
                     </div>
-                    <div className="table-wrap" style={{ margin: 0, overflowX: "auto" }}>
-                      <table style={{ minWidth: 520 }}>
+                    <div className="table-wrap" style={{ margin: 0, overflowX: "hidden" }}>
+                      <table className="kit-alloc-table">
+                        <colgroup>
+                          <col style={{ width: "12%" }} />
+                          <col style={{ width: "26%" }} />
+                          <col style={{ width: "10%" }} />
+                          <col style={{ width: "10%" }} />
+                          <col style={{ width: "42%" }} />
+                        </colgroup>
                         <thead>
                           <tr>
                             <th>Item Code</th>
@@ -999,8 +1006,15 @@ export default function CreateKit() {
                         {det.shortfalls.length} items
                       </span>
                     </div>
-                    <div className="table-wrap" style={{ margin: 0, overflowX: "auto" }}>
-                      <table style={{ minWidth: 460 }}>
+                    <div className="table-wrap" style={{ margin: 0, overflowX: "hidden" }}>
+                      <table className="kit-alloc-table">
+                        <colgroup>
+                          <col style={{ width: "14%" }} />
+                          <col style={{ width: "40%" }} />
+                          <col style={{ width: "15%" }} />
+                          <col style={{ width: "15%" }} />
+                          <col style={{ width: "16%" }} />
+                        </colgroup>
                         <thead>
                           <tr>
                             <th>Item Code</th>
@@ -1766,8 +1780,15 @@ export default function CreateKit() {
 
           {allocatedOpen && (
             <div style={{ border: "1px solid #86efac", borderTop: "none", borderRadius: "0 0 10px 10px", overflow: "hidden" }}>
-              <div className="table-wrap" style={{ margin: 0, overflowX: "auto", maxHeight: 420, overflowY: "auto" }}>
-                <table style={{ minWidth: 480 }}>
+              <div className="table-wrap" style={{ margin: 0, overflowX: "hidden", maxHeight: 420, overflowY: "auto" }}>
+                <table className="kit-alloc-table">
+                  <colgroup>
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "44%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "20%" }} />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Item Code</th>
@@ -1870,8 +1891,16 @@ export default function CreateKit() {
 
           {shortfallsOpen && (
             <div style={{ border: "1px solid #fca5a5", borderTop: "none", borderRadius: "0 0 10px 10px", overflow: "hidden" }}>
-              <div className="table-wrap" style={{ margin: 0, overflowX: "auto", maxHeight: 420, overflowY: "auto" }}>
-                <table style={{ minWidth: 520 }}>
+              <div className="table-wrap" style={{ margin: 0, overflowX: "hidden", maxHeight: 420, overflowY: "auto" }}>
+                <table className="kit-alloc-table">
+                  <colgroup>
+                    <col style={{ width: "11%" }} />
+                    <col style={{ width: "31%" }} />
+                    <col style={{ width: "11%" }} />
+                    <col style={{ width: "11%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "24%" }} />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Item Code</th>
