@@ -32,6 +32,7 @@ router.get("/", requireLogin, async (req, res) => {
     const [rows] = await conn.query(`
       SELECT dc.id, dc.challan_no, dc.challan_date, dc.party_name,
              dc.shipping_party_name, dc.vehicle_number, dc.status,
+             dc.reason, dc.is_returnable, dc.expected_return_date, dc.returned_at,
              dc.created_by, dc.created_at,
              COUNT(DISTINCT dci.item_code) AS item_count
       FROM delivery_challans dc
@@ -99,7 +100,10 @@ router.get("/:id", requireLogin, async (req, res) => {
 
 // POST /api/outward — create challan, allocate FEFO, deduct stock
 router.post("/", ...adminOnly, async (req, res) => {
-  const { party_name, delivery_address, shipping_party_name, shipping_address, vehicle_number, items } = req.body;
+  const {
+    party_name, delivery_address, shipping_party_name, shipping_address, vehicle_number, items,
+    reason = "sale", is_returnable = false, expected_return_date = null,
+  } = req.body;
 
   if (!party_name?.trim() || !delivery_address?.trim()) {
     return res.status(400).json({ error: "party_name and delivery_address are required" });
@@ -107,6 +111,10 @@ router.post("/", ...adminOnly, async (req, res) => {
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "At least one item is required" });
   }
+  if (!["sale", "demonstration"].includes(reason)) {
+    return res.status(400).json({ error: "reason must be 'sale' or 'demonstration'" });
+  }
+  const returnable = !!is_returnable;
 
   const conn = await pool.getConnection();
   try {
@@ -151,8 +159,9 @@ router.post("/", ...adminOnly, async (req, res) => {
     const [result] = await conn.query(
       `INSERT INTO delivery_challans
        (challan_no, challan_date, party_name, delivery_address,
-        shipping_party_name, shipping_address, vehicle_number, created_by)
-       VALUES (?, CURDATE(), ?, ?, ?, ?, ?, ?)`,
+        shipping_party_name, shipping_address, vehicle_number, created_by,
+        reason, is_returnable, expected_return_date)
+       VALUES (?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         challan_no,
         party_name.trim(),
@@ -161,6 +170,9 @@ router.post("/", ...adminOnly, async (req, res) => {
         (shipping_address   || delivery_address).trim(),
         vehicle_number?.trim() || null,
         req.session.user?.username || "unknown",
+        reason,
+        returnable ? 1 : 0,
+        returnable ? (expected_return_date || null) : null,
       ]
     );
     const challanId = result.insertId;
@@ -203,9 +215,9 @@ router.put("/:id/cancel", ...adminOnly, async (req, res) => {
       await conn.query("ROLLBACK");
       return res.status(404).json({ error: "Challan not found" });
     }
-    if (challan.status === "cancelled") {
+    if (challan.status !== "confirmed") {
       await conn.query("ROLLBACK");
-      return res.status(400).json({ error: "Challan is already cancelled" });
+      return res.status(400).json({ error: `Challan is already ${challan.status}` });
     }
 
     const [lines] = await conn.query(
@@ -226,6 +238,58 @@ router.put("/:id/cancel", ...adminOnly, async (req, res) => {
 
     await conn.query("COMMIT");
     res.json({ msg: "Challan cancelled and stock restored" });
+  } catch (err) {
+    await conn.query("ROLLBACK");
+    res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// PUT /api/outward/:id/return — mark a returnable challan as returned and
+// restore stock. Distinct from /cancel: this challan legitimately happened
+// (e.g. a demonstration) and the goods have physically come back, so it's
+// recorded as 'returned', not 'cancelled'.
+router.put("/:id/return", ...adminOnly, async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.query("START TRANSACTION");
+
+    const [[challan]] = await conn.query(
+      "SELECT id, status, is_returnable FROM delivery_challans WHERE id = ?",
+      [req.params.id]
+    );
+    if (!challan) {
+      await conn.query("ROLLBACK");
+      return res.status(404).json({ error: "Challan not found" });
+    }
+    if (!challan.is_returnable) {
+      await conn.query("ROLLBACK");
+      return res.status(400).json({ error: "This challan was not marked returnable" });
+    }
+    if (challan.status !== "confirmed") {
+      await conn.query("ROLLBACK");
+      return res.status(400).json({ error: `Challan is already ${challan.status}` });
+    }
+
+    const [lines] = await conn.query(
+      "SELECT batch_id, qty FROM delivery_challan_items WHERE challan_id = ?",
+      [req.params.id]
+    );
+    for (const line of lines) {
+      await conn.query(
+        "UPDATE stock_batches SET qty_issued = GREATEST(0, qty_issued - ?) WHERE batch_id = ?",
+        [line.qty, line.batch_id]
+      );
+    }
+
+    await conn.query(
+      "UPDATE delivery_challans SET status = 'returned', returned_at = NOW() WHERE id = ?",
+      [req.params.id]
+    );
+
+    await conn.query("COMMIT");
+    res.json({ msg: "Challan marked as returned and stock restored" });
   } catch (err) {
     await conn.query("ROLLBACK");
     res.status(500).json({ error: err.message });

@@ -405,6 +405,50 @@ async function initSchema() {
       if (!e.message.includes('Duplicate column name')) throw e;
     }
 
+    // Outward reason tracking — why stock is leaving (sale vs demonstration;
+    // Kit Generation has its own separate assembled_kits/inventory_transactions
+    // flow and never touches delivery_challans). is_returnable + the two date
+    // columns support demo equipment that's expected to come back into stock.
+    try {
+      await conn.query(`
+        ALTER TABLE delivery_challans
+          ADD COLUMN reason ENUM('sale','demonstration') NOT NULL DEFAULT 'sale'
+      `);
+    } catch (e) {
+      if (!e.message.includes('Duplicate column name')) throw e;
+    }
+    try {
+      await conn.query(`
+        ALTER TABLE delivery_challans
+          ADD COLUMN is_returnable TINYINT(1) NOT NULL DEFAULT 0
+      `);
+    } catch (e) {
+      if (!e.message.includes('Duplicate column name')) throw e;
+    }
+    try {
+      await conn.query(`
+        ALTER TABLE delivery_challans
+          ADD COLUMN expected_return_date DATE DEFAULT NULL
+      `);
+    } catch (e) {
+      if (!e.message.includes('Duplicate column name')) throw e;
+    }
+    try {
+      await conn.query(`
+        ALTER TABLE delivery_challans
+          ADD COLUMN returned_at TIMESTAMP NULL DEFAULT NULL
+      `);
+    } catch (e) {
+      if (!e.message.includes('Duplicate column name')) throw e;
+    }
+    // 'returned' is a distinct terminal state from 'cancelled' — cancelled
+    // means the challan shouldn't have happened, returned means it went out
+    // and legitimately came back. MODIFY is idempotent, no try/catch needed.
+    await conn.query(`
+      ALTER TABLE delivery_challans
+        MODIFY COLUMN status ENUM('confirmed','cancelled','returned') NOT NULL DEFAULT 'confirmed'
+    `);
+
     console.log("✅ MariaDB schema ready");
   } catch (err) {
     console.error("❌ MariaDB schema init failed:", err.message);

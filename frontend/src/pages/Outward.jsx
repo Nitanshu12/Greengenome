@@ -138,6 +138,7 @@ function OutwardForm({ allItems, onDone, onCancel }) {
     party_name: "", delivery_address: "",
     shipping_party_name: "", shipping_address: "",
     same_as_delivery: false, vehicle_number: "",
+    reason: "sale", is_returnable: false, expected_return_date: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -199,6 +200,9 @@ function OutwardForm({ allItems, onDone, onCancel }) {
         shipping_party_name: meta.same_as_delivery ? meta.party_name.trim() : meta.shipping_party_name.trim(),
         shipping_address:    meta.same_as_delivery ? meta.delivery_address.trim() : meta.shipping_address.trim(),
         vehicle_number:      meta.vehicle_number.trim(),
+        reason:               meta.reason,
+        is_returnable:        meta.is_returnable,
+        expected_return_date: meta.is_returnable ? (meta.expected_return_date || null) : null,
         items: formItems.map(fi => ({ item_code: fi.item_code, qty: Number(fi.qty) })),
       });
       toast(`${result.challan_no} created successfully`);
@@ -306,6 +310,46 @@ function OutwardForm({ allItems, onDone, onCancel }) {
         )}
       </div>
 
+      {/* Reason */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontWeight: 600, marginBottom: 10, color: "var(--primary, #077B4D)" }}>Reason</div>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div className="form-group" style={{ maxWidth: 220, marginBottom: 0 }}>
+            <label className="form-label">Outward Reason *</label>
+            <select
+              className="form-input"
+              value={meta.reason}
+              onChange={e => {
+                const reason = e.target.value;
+                setMeta(m => ({ ...m, reason, is_returnable: reason === "demonstration" ? true : m.is_returnable }));
+              }}
+            >
+              <option value="sale">Sale</option>
+              <option value="demonstration">Demonstration</option>
+            </select>
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", paddingBottom: 8 }}>
+            <input
+              type="checkbox"
+              checked={meta.is_returnable}
+              onChange={e => setMf("is_returnable", e.target.checked)}
+            />
+            Returnable
+          </label>
+          {meta.is_returnable && (
+            <div className="form-group" style={{ maxWidth: 200, marginBottom: 0 }}>
+              <label className="form-label">Expected Return Date</label>
+              <input
+                type="date"
+                className="form-input"
+                value={meta.expected_return_date}
+                onChange={e => setMf("expected_return_date", e.target.value)}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Addresses */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 16 }}>
         <div>
@@ -389,9 +433,16 @@ function OutwardForm({ allItems, onDone, onCancel }) {
   );
 }
 
+const STATUS_STYLE = {
+  confirmed: { color: "#16a34a", bg: "#dcfce7" },
+  cancelled: { color: "#dc2626", bg: "#fee2e2" },
+  returned:  { color: "#2563eb", bg: "#dbeafe" },
+};
+
 // ── Single challan accordion card ─────────────────────────────
-function ChallanCard({ challan, isOpen, detail, onToggle, onCancel, onPrint }) {
-  const cancelled = challan.status === "cancelled";
+function ChallanCard({ challan, isOpen, detail, onToggle, onCancel, onReturn, onPrint }) {
+  const isFinal = challan.status !== "confirmed";
+  const statusStyle = STATUS_STYLE[challan.status] || STATUS_STYLE.confirmed;
   return (
     <div style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
       {/* Header row */}
@@ -412,9 +463,22 @@ function ChallanCard({ challan, isOpen, detail, onToggle, onCancel, onPrint }) {
           {challan.item_count} item{challan.item_count !== 1 ? "s" : ""}
         </span>
         <span style={{
+          fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10,
+          color: "var(--muted)", background: "var(--border)", textTransform: "capitalize",
+        }}>
+          {challan.reason || "sale"}
+        </span>
+        {!!challan.is_returnable && (
+          <span style={{
+            fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10,
+            color: "#2563eb", background: "#dbeafe", whiteSpace: "nowrap",
+          }}>
+            ↩ Returnable{challan.expected_return_date ? ` · due ${fmtDate(challan.expected_return_date)}` : ""}
+          </span>
+        )}
+        <span style={{
           fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
-          color: cancelled ? "#dc2626" : "#16a34a",
-          background: cancelled ? "#fee2e2" : "#dcfce7",
+          color: statusStyle.color, background: statusStyle.bg,
         }}>
           {challan.status}
         </span>
@@ -425,7 +489,16 @@ function ChallanCard({ challan, isOpen, detail, onToggle, onCancel, onPrint }) {
         >
           🖨 Print
         </button>
-        {onCancel && !cancelled && (
+        {onReturn && !!challan.is_returnable && challan.status === "confirmed" && (
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ padding: "3px 10px", fontSize: 12, color: "#2563eb", borderColor: "#93c5fd" }}
+            onClick={e => { e.stopPropagation(); onReturn(); }}
+          >
+            ↩ Mark as Returned
+          </button>
+        )}
+        {onCancel && !isFinal && (
           <button
             className="btn btn-danger btn-sm"
             style={{ padding: "3px 10px", fontSize: 12 }}
@@ -549,6 +622,19 @@ export default function Outward() {
     }
   };
 
+  const handleReturn = async (id) => {
+    const ch = challans.find(c => c.id === id);
+    if (!confirm(`Mark challan ${ch?.challan_no} as returned?\nStock will be restored.`)) return;
+    try {
+      await api.returnChallan(id);
+      toast("Challan marked as returned — stock restored");
+      setDetailCache(c => { const n = { ...c }; delete n[id]; return n; });
+      load();
+    } catch (e) {
+      toast(e.message, "error");
+    }
+  };
+
   const handlePrint = async (id) => {
     let detail = detailCache[id];
     if (!detail) {
@@ -604,6 +690,7 @@ export default function Outward() {
               detail={detailCache[ch.id]}
               onToggle={() => toggleChallan(ch.id)}
               onCancel={isAdmin ? () => handleCancel(ch.id) : undefined}
+              onReturn={isAdmin ? () => handleReturn(ch.id) : undefined}
               onPrint={() => handlePrint(ch.id)}
             />
           ))}

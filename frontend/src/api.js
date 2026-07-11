@@ -138,6 +138,7 @@ export const api = {
   getChallanDetail:        (id)         => request("GET",  `/outward/${id}`),
   createChallan:           (body)       => request("POST", "/outward", body),
   cancelChallan:           (id)         => request("PUT",  `/outward/${id}/cancel`, {}),
+  returnChallan:           (id)         => request("PUT",  `/outward/${id}/return`, {}),
 
   // Inventory Transactions
   getInventoryTransactions:  ()             => request("GET",    "/inventory-transactions"),
