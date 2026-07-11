@@ -468,7 +468,7 @@ function ChallanCard({ challan, isOpen, detail, onToggle, onCancel, onReturn, on
         }}>
           {challan.reason || "sale"}
         </span>
-        {!!challan.is_returnable && (
+        {!!challan.is_returnable && challan.status !== "returned" && (
           <span style={{
             fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10,
             color: "#2563eb", background: "#dbeafe", whiteSpace: "nowrap",
