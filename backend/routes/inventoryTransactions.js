@@ -56,7 +56,13 @@ async function buildDraftRows(conn, kit) {
     });
   }
 
-  const itemCodes = [...new Set(templateRows.map(r => r.item_code).filter(Boolean))];
+  // Sub-kit component codes are included here too — their item_documents
+  // (MSDS, sterility certs) belong to the ingredient, not the sub-kit, so
+  // they'd otherwise never get fetched.
+  const itemCodes = [...new Set([
+    ...templateRows.map(r => r.item_code),
+    ...subKitComponents.map(c => c.component_item_code),
+  ].filter(Boolean))];
   const batchIds = [...new Set(allocRows.map(r => r.batch_id))];
 
   const itemDocs = {};
@@ -155,6 +161,13 @@ async function buildDraftRows(conn, kit) {
             total_qty: needQty,
             qty_short: short > 0 ? short : 0,
             batches: usedBatches,
+            // Item-level docs (apply regardless of batch) + one batch's
+            // docs per batch actually drawn from — same two sources raw
+            // items already pull from, just merged into one list here.
+            documents: [
+              ...(itemDocs[c.component_item_code] || []),
+              ...usedBatches.flatMap(b => batchDocs[b.batch_id] || []),
+            ],
           });
         }
         if (anyShort) flaggedCount++;

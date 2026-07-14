@@ -298,28 +298,43 @@ function TransactionCard({ txn, isOpen, detail, onToggle, onReload, isAdmin, toa
                                   <th style={{ textAlign: "left", padding: "3px 8px", fontWeight: 600 }}>Component</th>
                                   <th style={{ textAlign: "left", padding: "3px 8px", fontWeight: 600 }}>Qty used</th>
                                   <th style={{ textAlign: "left", padding: "3px 8px", fontWeight: 600 }}>Batch(es)</th>
+                                  <th style={{ textAlign: "left", padding: "3px 8px", fontWeight: 600 }}>Document</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {it.assembly_detail.map((d, di) => (
-                                  <tr key={di}>
-                                    <td style={{ padding: "3px 8px" }}>{d.component_name}</td>
-                                    <td style={{ padding: "3px 8px", fontVariantNumeric: "tabular-nums" }}>{d.total_qty}</td>
-                                    <td style={{ padding: "3px 8px" }}>
-                                      {d.batches.map((b, bi) => (
-                                        <span key={bi} style={{
-                                          display: "inline-block", fontFamily: "monospace", fontSize: 11,
-                                          marginRight: 6, marginBottom: 2, padding: "1px 6px", borderRadius: 5,
-                                          border: `1px solid ${d.batches.length > 1 ? "#fbd38d" : "var(--border)"}`,
-                                          color: d.batches.length > 1 ? "#92400e" : "inherit",
-                                        }}>
-                                          {b.batch_no || "—"}{d.batches.length > 1 ? ` ×${b.qty}` : ""}
-                                        </span>
-                                      ))}
-                                      {d.qty_short > 0 && <span style={{ color: "#dc2626", fontSize: 11 }}> ⚠ short {d.qty_short}</span>}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {it.assembly_detail.flatMap((d, di) => {
+                                  const docs = d.documents && d.documents.length ? d.documents : [null];
+                                  return docs.map((doc, dj) => (
+                                    <tr key={`${di}-${dj}`}>
+                                      {dj === 0 && (
+                                        <>
+                                          <td rowSpan={docs.length} style={{ padding: "3px 8px" }}>{d.component_name}</td>
+                                          <td rowSpan={docs.length} style={{ padding: "3px 8px", fontVariantNumeric: "tabular-nums" }}>{d.total_qty}</td>
+                                          <td rowSpan={docs.length} style={{ padding: "3px 8px" }}>
+                                            {d.batches.map((b, bi) => (
+                                              <span key={bi} style={{
+                                                display: "inline-block", fontFamily: "monospace", fontSize: 11,
+                                                marginRight: 6, marginBottom: 2, padding: "1px 6px", borderRadius: 5,
+                                                border: `1px solid ${d.batches.length > 1 ? "#fbd38d" : "var(--border)"}`,
+                                                color: d.batches.length > 1 ? "#92400e" : "inherit",
+                                              }}>
+                                                {b.batch_no || "—"}{d.batches.length > 1 ? ` ×${b.qty}` : ""}
+                                              </span>
+                                            ))}
+                                            {d.qty_short > 0 && <span style={{ color: "#dc2626", fontSize: 11 }}> ⚠ short {d.qty_short}</span>}
+                                          </td>
+                                        </>
+                                      )}
+                                      <td style={{ padding: "3px 8px" }}>
+                                        {doc
+                                          ? (doc.document_url
+                                              ? <a href={doc.document_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>{doc.document_name || "Link"}</a>
+                                              : (doc.document_name || "—"))
+                                          : "—"}
+                                      </td>
+                                    </tr>
+                                  ));
+                                })}
                               </tbody>
                             </table>
                           </td>

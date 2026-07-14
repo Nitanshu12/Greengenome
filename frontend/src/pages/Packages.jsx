@@ -13,14 +13,7 @@ export default function Packages() {
   const [downloading, setDownloading] = useState(false);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [expandedRows, setExpandedRows] = useState(new Set());
   const ROWS_PER_PAGE = 20;
-
-  const toggleAssembly = (key) => setExpandedRows(prev => {
-    const next = new Set(prev);
-    if (next.has(key)) next.delete(key); else next.add(key);
-    return next;
-  });
 
   // ── Load kit list on mount ──────────────────────────────────
   useEffect(() => {
@@ -304,29 +297,15 @@ export default function Packages() {
                     {paginated.map((r, i) => {
                       const rowKey = r._id || (pageStart + i);
                       const hasAssembly = Array.isArray(r.assemblyDetail) && r.assemblyDetail.length > 0;
-                      const isExpanded = expandedRows.has(rowKey);
                       return (
                       <Fragment key={rowKey}>
-                      <tr
-                        onClick={hasAssembly ? () => toggleAssembly(rowKey) : undefined}
-                        style={{ cursor: hasAssembly ? "pointer" : undefined }}
-                      >
+                      <tr>
                         {/* <td style={{ color: "var(--muted)", textAlign: "right", minWidth: 40 }}>
                           {pageStart + i + 1}
                         </td> */}
                         <td>{r.cube || "NA"}</td>
                         <td>{r.box || "NA"}</td>
-                        <td>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            {hasAssembly && (
-                              <span style={{
-                                display: "inline-block", flex: "none", color: "var(--muted)",
-                                transition: "transform .15s", transform: isExpanded ? "rotate(90deg)" : "none",
-                              }}>▸</span>
-                            )}
-                            {r.items || "NA"}
-                          </div>
-                        </td>
+                        <td>{r.items || "NA"}</td>
                         <td>{r.brand || "NA"}</td>
                         <td>{r.oem || "NA"}</td>
                         <td>{r.itemType || "NA"}</td>
@@ -355,7 +334,7 @@ export default function Packages() {
                             : "NA"}
                         </td>
                       </tr>
-                      {hasAssembly && isExpanded && (
+                      {hasAssembly && (
                         <tr>
                           <td colSpan={10} style={{ background: "var(--bg-alt, #f9fafb)", padding: "10px 18px" }}>
                             <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
@@ -364,28 +343,43 @@ export default function Packages() {
                                   <th style={{ textAlign: "left", padding: "3px 8px", fontWeight: 600 }}>Component</th>
                                   <th style={{ textAlign: "left", padding: "3px 8px", fontWeight: 600 }}>Qty used</th>
                                   <th style={{ textAlign: "left", padding: "3px 8px", fontWeight: 600 }}>Batch(es)</th>
+                                  <th style={{ textAlign: "left", padding: "3px 8px", fontWeight: 600 }}>Document</th>
+                                  <th style={{ textAlign: "left", padding: "3px 8px", fontWeight: 600, width: 70 }}>Link</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {r.assemblyDetail.map((d, di) => (
-                                  <tr key={di}>
-                                    <td style={{ padding: "3px 8px" }}>{d.component_name}</td>
-                                    <td style={{ padding: "3px 8px", fontVariantNumeric: "tabular-nums" }}>{d.total_qty}</td>
-                                    <td style={{ padding: "3px 8px" }}>
-                                      {d.batches.map((b, bi) => (
-                                        <span key={bi} style={{
-                                          display: "inline-block", fontFamily: "monospace", fontSize: 11,
-                                          marginRight: 6, marginBottom: 2, padding: "1px 6px", borderRadius: 5,
-                                          border: `1px solid ${d.batches.length > 1 ? "#fbd38d" : "var(--border)"}`,
-                                          color: d.batches.length > 1 ? "#92400e" : "inherit",
-                                        }}>
-                                          {b.batch_no || "—"}{d.batches.length > 1 ? ` ×${b.qty}` : ""}
-                                        </span>
-                                      ))}
-                                      {d.qty_short > 0 && <span style={{ color: "#dc2626", fontSize: 11 }}> ⚠ short {d.qty_short}</span>}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {r.assemblyDetail.flatMap((d, di) => {
+                                  const docs = d.documents && d.documents.length ? d.documents : [null];
+                                  return docs.map((doc, dj) => (
+                                    <tr key={`${di}-${dj}`}>
+                                      {dj === 0 && (
+                                        <>
+                                          <td rowSpan={docs.length} style={{ padding: "3px 8px" }}>{d.component_name}</td>
+                                          <td rowSpan={docs.length} style={{ padding: "3px 8px", fontVariantNumeric: "tabular-nums" }}>{d.total_qty}</td>
+                                          <td rowSpan={docs.length} style={{ padding: "3px 8px" }}>
+                                            {d.batches.map((b, bi) => (
+                                              <span key={bi} style={{
+                                                display: "inline-block", fontFamily: "monospace", fontSize: 11,
+                                                marginRight: 6, marginBottom: 2, padding: "1px 6px", borderRadius: 5,
+                                                border: `1px solid ${d.batches.length > 1 ? "#fbd38d" : "var(--border)"}`,
+                                                color: d.batches.length > 1 ? "#92400e" : "inherit",
+                                              }}>
+                                                {b.batch_no || "—"}{d.batches.length > 1 ? ` ×${b.qty}` : ""}
+                                              </span>
+                                            ))}
+                                            {d.qty_short > 0 && <span style={{ color: "#dc2626", fontSize: 11 }}> ⚠ short {d.qty_short}</span>}
+                                          </td>
+                                        </>
+                                      )}
+                                      <td style={{ padding: "3px 8px" }}>{doc ? (doc.document_name || "NA") : "NA"}</td>
+                                      <td style={{ padding: "3px 8px" }}>
+                                        {doc && doc.document_url
+                                          ? <a href={doc.document_url} target="_blank" rel="noreferrer">↗ Open</a>
+                                          : "NA"}
+                                      </td>
+                                    </tr>
+                                  ));
+                                })}
                               </tbody>
                             </table>
                           </td>
