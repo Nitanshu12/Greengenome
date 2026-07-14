@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api, downloadBlob } from "../api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/Toast";
+import ProgressLoader from "../components/ProgressLoader";
 
 const EMPTY_FORM = { kit_name: "", qty_kits: 1, notes: "" };
 
@@ -508,6 +509,7 @@ export default function CreateKit() {
   const [phase, setPhase] = useState("form");
   const [form, setForm] = useState(EMPTY_FORM);
   const [creating, setCreating] = useState(false);
+  const [creatingDone, setCreatingDone] = useState(false);
   const [result, setResult] = useState(null);
   const [allocatedOpen, setAllocatedOpen] = useState(true);
   const [shortfallsOpen, setShortfallsOpen] = useState(true);
@@ -516,6 +518,7 @@ export default function CreateKit() {
   const [history, setHistory] = useState([]);
   const [historyOpen, setHistoryOpen] = useState(true);
   const [generatingTxnFor, setGeneratingTxnFor] = useState(null);
+  const [deployedTick, setDeployedTick] = useState(null); // kit_id currently showing the "Deployed!" tick
 
   // Kit detail modal
   const [selectedKit, setSelectedKit] = useState(null);
@@ -674,11 +677,15 @@ export default function CreateKit() {
     try {
       const data = await api.generateInventoryTxn(kitRow.kit_id);
       toast(`Inventory transaction #${data.id} generated (${data.row_count} rows${data.flagged_count ? `, ${data.flagged_count} flagged for review` : ""})`);
-      api.getKitHistory().then(d => setHistory(d.data || [])).catch(() => {});
-      navigate("/inventory-transactions");
+      setGeneratingTxnFor(null);
+      setDeployedTick(kitRow.kit_id);
+      const hist = await api.getKitHistory().catch(() => null);
+      if (hist) setHistory(hist.data || []);
+      setTimeout(() => {
+        setDeployedTick(current => (current === kitRow.kit_id ? null : current));
+      }, 1400);
     } catch (e) {
       toast(e.message, "error");
-    } finally {
       setGeneratingTxnFor(null);
     }
   };
@@ -694,7 +701,33 @@ export default function CreateKit() {
     const historyEntry = history.find(h => h.kit_id === kitRow.kit_id);
     const hasTxn = historyEntry?.transaction_id;
     const isGenerating = generatingTxnFor === kitRow.kit_id;
+    const justDeployed = deployedTick === kitRow.kit_id;
     const disabled = shortfallCount > 0;
+
+    if (isGenerating || justDeployed) {
+      return (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {justDeployed ? (
+            <span style={{
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              width: small ? 16 : 18, height: small ? 16 : 18, borderRadius: "50%",
+              background: "#dcfce7", color: "#16a34a", fontSize: small ? 10 : 11,
+              animation: "progressTickPop 0.3s ease",
+            }}>
+              ✓
+            </span>
+          ) : (
+            <span className="spinner" style={{ width: small ? 12 : 14, height: small ? 12 : 14 }} />
+          )}
+          <span style={{
+            fontSize: small ? 11 : 12, fontWeight: 700,
+            color: justDeployed ? "#16a34a" : "var(--muted)", whiteSpace: "nowrap",
+          }}>
+            {justDeployed ? "Deployed!" : "Deploying…"}
+          </span>
+        </span>
+      );
+    }
 
     if (hasTxn) {
       return (
@@ -773,18 +806,22 @@ export default function CreateKit() {
       );
       return;
     }
+    setPhase("creating");
     setCreating(true);
+    setCreatingDone(false);
     try {
       const data = await api.createKit({ ...form, qty_kits: qty });
-      setResult(data);
-      setPerKitOpen({});
-      setPerKitSectionOpen({});
-      setPhase("result");
+      setCreatingDone(true);
       api.getKitHistory().then(d => {
         const rows = d.data || [];
         setHistory(rows);
         loadPendingKit(rows);
       }).catch(() => {});
+      await new Promise(r => setTimeout(r, 650)); // let the tick actually be seen
+      setResult(data);
+      setPerKitOpen({});
+      setPerKitSectionOpen({});
+      setPhase("result");
       if (data.status === "assembled") {
         toast(`Kit "${data.kit_name}" fully assembled! Kit ID: #${data.kit_id}`);
       } else {
@@ -792,6 +829,7 @@ export default function CreateKit() {
       }
     } catch (e) {
       toast(e.message, "error");
+      setPhase("form");
     } finally {
       setCreating(false);
     }
@@ -1560,6 +1598,22 @@ export default function CreateKit() {
 
         <HistorySection />
       </>
+    );
+  }
+
+  if (phase === "creating") {
+    return (
+      <div style={{
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        minHeight: 360, gap: 4,
+      }}>
+        <ProgressLoader
+          active={creating}
+          done={creatingDone}
+          label={`Assembling "${form.kit_name}"…`}
+          doneLabel="Kit assembled!"
+        />
+      </div>
     );
   }
 

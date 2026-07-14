@@ -17,14 +17,17 @@ async function buildDraftRows(conn, kit) {
   const [templateRows] = await conn.query(
     `SELECT t.cube_no, t.box_no, t.item_code, t.qty, t.row_order,
             COALESCE(i.name, t.item_name_raw) AS item_name,
-            i.brand, i.is_subkit
+            i.brand, i.is_subkit, i.product_category
      FROM kit_box_template t
      LEFT JOIN items i ON i.item_code = t.item_code
      ORDER BY t.row_order ASC`
   );
 
   const [subKitComponents] = await conn.query(
-    `SELECT sub_kit_item_code, component_item_code, qty_per_unit FROM sub_kit_components`
+    `SELECT sc.sub_kit_item_code, sc.component_item_code, sc.qty_per_unit,
+            COALESCE(i.name, sc.component_item_code) AS component_name
+     FROM sub_kit_components sc
+     LEFT JOIN items i ON i.item_code = sc.component_item_code`
   );
   const componentsBySubKit = {};
   for (const c of subKitComponents) (componentsBySubKit[c.sub_kit_item_code] ||= []).push(c);
@@ -75,6 +78,24 @@ async function buildDraftRows(conn, kit) {
     for (const d of docs) (batchDocs[d.batch_id] ||= []).push(d);
   }
 
+  // OEM = the vendor that supplied the specific batch a row's units came
+  // from (stock_batches.vendor_code -> vendors.business_name) — resolved
+  // per batch, not per item, since two batches of the same item can come
+  // from different vendors. Raw items only; sub-kits are assembled
+  // manually and have no vendor of their own (handled separately below).
+  const batchVendorName = {};
+  if (batchIds.length) {
+    const ph = batchIds.map(() => "?").join(",");
+    const [vendRows] = await conn.query(
+      `SELECT sb.batch_id, v.business_name
+       FROM stock_batches sb
+       LEFT JOIN vendors v ON v.vendor_code = sb.vendor_code
+       WHERE sb.batch_id IN (${ph})`,
+      batchIds
+    );
+    for (const r of vendRows) if (r.business_name) batchVendorName[r.batch_id] = r.business_name;
+  }
+
   // Pulls `qty` units of `itemCode` off its FEFO batch queue, mutating it.
   // Returns the slices actually obtained — fewer than requested if the
   // queue runs dry (BOM totals and box-template totals drifted apart).
@@ -111,15 +132,30 @@ async function buildDraftRows(conn, kit) {
         const comps = componentsBySubKit[t.item_code] || [];
         let earliestExpiry = null;
         let anyShort = false;
-        const batchNos = [];
+        // Per-component batch breakdown for this placement — usually every
+        // component resolves to one batch (a combined order), but FEFO can
+        // split a component across two batches if the nearest-expiry one
+        // runs low mid-assembly. There's no single "batch" for the sub-kit
+        // itself (it's hand-assembled, not issued from one shelf), so
+        // batch_no on the row stays null — this detail is the only place
+        // batch info lives for a sub-kit row.
+        const detail = [];
         for (const c of comps) {
           const needQty = c.qty_per_unit * t.qty;
           const { slices, short } = consume(c.component_item_code, needQty);
           if (short > 0) anyShort = true;
+          const usedBatches = [];
           for (const sl of slices) {
             if (sl.expiry_date && (!earliestExpiry || sl.expiry_date < earliestExpiry)) earliestExpiry = sl.expiry_date;
-            if (sl.supplier_batch_no) batchNos.push(sl.supplier_batch_no);
+            usedBatches.push({ batch_id: sl.batch_id, batch_no: sl.supplier_batch_no || null, qty: sl.qty });
           }
+          detail.push({
+            component_item_code: c.component_item_code,
+            component_name: c.component_name,
+            total_qty: needQty,
+            qty_short: short > 0 ? short : 0,
+            batches: usedBatches,
+          });
         }
         if (anyShort) flaggedCount++;
 
@@ -131,10 +167,11 @@ async function buildDraftRows(conn, kit) {
             cube_no: String(t.cube_no), box_no: t.box_no,
             item_code: t.item_code, item_name: t.item_name, brand: t.brand || null,
             oem: null, item_type: null,
-            batch_id: null, batch_no: batchNos.length ? [...new Set(batchNos)].join(", ") : null,
+            batch_id: null, batch_no: null,
             expiry_date: earliestExpiry,
             document_name: d.document_name, document_url: d.document_url,
             is_flagged: anyShort,
+            assembly_detail: detail.length ? JSON.stringify(detail) : null,
           });
         }
         continue;
@@ -148,10 +185,11 @@ async function buildDraftRows(conn, kit) {
           row_order: rowOrder++,
           cube_no: String(t.cube_no), box_no: t.box_no,
           item_code: t.item_code, item_name: t.item_name, brand: t.brand || null,
-          oem: null, item_type: null,
+          oem: null, item_type: t.product_category || null,
           batch_id: null, batch_no: null, expiry_date: null,
           document_name: null, document_url: null,
           is_flagged: true,
+          assembly_detail: null,
         });
         continue;
       }
@@ -164,10 +202,11 @@ async function buildDraftRows(conn, kit) {
             row_order: rowOrder++,
             cube_no: String(t.cube_no), box_no: t.box_no,
             item_code: t.item_code, item_name: t.item_name, brand: t.brand || null,
-            oem: null, item_type: null,
+            oem: batchVendorName[sl.batch_id] || null, item_type: t.product_category || null,
             batch_id: sl.batch_id, batch_no: sl.supplier_batch_no, expiry_date: sl.expiry_date,
             document_name: d.document_name, document_url: d.document_url,
             is_flagged: short > 0,
+            assembly_detail: null,
           });
         }
       }
@@ -261,10 +300,10 @@ router.post("/generate/:kit_id", ...adminOnly, async (req, res) => {
       await conn.query(
         `INSERT INTO inventory_transaction_items
            (transaction_id, row_order, cube_no, box_no, item_code, item_name, brand, oem, item_type,
-            batch_id, batch_no, expiry_date, document_name, document_url, is_flagged)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            batch_id, batch_no, expiry_date, document_name, document_url, is_flagged, assembly_detail)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [txnId, r.row_order, r.cube_no, r.box_no, r.item_code, r.item_name, r.brand, r.oem, r.item_type,
-         r.batch_id, r.batch_no, r.expiry_date, r.document_name, r.document_url, r.is_flagged]
+         r.batch_id, r.batch_no, r.expiry_date, r.document_name, r.document_url, r.is_flagged, r.assembly_detail]
       );
     }
 
@@ -356,9 +395,11 @@ router.post("/:id/sync", ...adminOnly, async (req, res) => {
       [req.params.id]
     );
 
-    let docsUpdated = 0, rowsAdded = 0, warningsSet = 0, warningsCleared = 0;
+    let docsUpdated = 0, rowsAdded = 0, warningsSet = 0, warningsCleared = 0, oemTypeUpdated = 0;
     // { cube_no, box_no, item_name, batch_no, document_name, document_url, isNewRow }
     const docChanges = [];
+    // { cube_no, box_no, item_name, batch_no, oem, item_type }
+    const oemTypeChanges = [];
 
     for (const it of items) {
       let newWarning = 0;
@@ -376,6 +417,40 @@ router.post("/:id/sync", ...adminOnly, async (req, res) => {
           [newWarning, it.id]
         );
         if (newWarning) warningsSet++; else warningsCleared++;
+      }
+
+      // OEM/Type only apply to raw items — a sub-kit is assembled manually
+      // from several components, so it has no single vendor/OEM of its own.
+      let newOem = it.oem, newItemType = it.item_type;
+      if (it.item_code && (!it.oem || !it.item_type)) {
+        const [[itemInfo]] = await conn.query(
+          "SELECT is_subkit, product_category FROM items WHERE item_code = ?",
+          [it.item_code]
+        );
+        if (itemInfo && !itemInfo.is_subkit) {
+          if (!newItemType && itemInfo.product_category) newItemType = itemInfo.product_category;
+          if (!newOem && it.batch_id) {
+            const [[vend]] = await conn.query(
+              `SELECT v.business_name FROM stock_batches sb
+               LEFT JOIN vendors v ON v.vendor_code = sb.vendor_code
+               WHERE sb.batch_id = ?`,
+              [it.batch_id]
+            );
+            if (vend?.business_name) newOem = vend.business_name;
+          }
+        }
+      }
+      const oemTypeChanged = newOem !== it.oem || newItemType !== it.item_type;
+      if (oemTypeChanged) {
+        await conn.query(
+          "UPDATE inventory_transaction_items SET oem = ?, item_type = ? WHERE id = ?",
+          [newOem, newItemType, it.id]
+        );
+        oemTypeUpdated++;
+        oemTypeChanges.push({
+          cube_no: it.cube_no, box_no: it.box_no, item_name: it.item_name, batch_no: it.batch_no,
+          oem: newOem, item_type: newItemType,
+        });
       }
 
       if (it.document_name || it.document_url) continue; // already has one — never overwrite
@@ -414,10 +489,11 @@ router.post("/:id/sync", ...adminOnly, async (req, res) => {
         await conn.query(
           `INSERT INTO inventory_transaction_items
              (transaction_id, row_order, cube_no, box_no, item_code, item_name, brand, oem, item_type,
-              batch_id, batch_no, expiry_date, document_name, document_url, is_flagged, batch_status_warning)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [txn.id, it.row_order, it.cube_no, it.box_no, it.item_code, it.item_name, it.brand, it.oem, it.item_type,
-           it.batch_id, it.batch_no, it.expiry_date, extra.document_name, extra.document_url, it.is_flagged, newWarning]
+              batch_id, batch_no, expiry_date, document_name, document_url, is_flagged, batch_status_warning, assembly_detail)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [txn.id, it.row_order, it.cube_no, it.box_no, it.item_code, it.item_name, it.brand, newOem, newItemType,
+           it.batch_id, it.batch_no, it.expiry_date, extra.document_name, extra.document_url, it.is_flagged, newWarning,
+           it.assembly_detail ? JSON.stringify(it.assembly_detail) : null]
         );
         docsUpdated++;
         rowsAdded++;
@@ -430,15 +506,25 @@ router.post("/:id/sync", ...adminOnly, async (req, res) => {
 
     if (txn.status === "draft" && rowsAdded > 0) await refreshFlaggedCount(req.params.id);
 
-    if (txn.status === "finalized" && docChanges.length > 0) {
+    if (txn.status === "finalized" && (docChanges.length > 0 || oemTypeChanges.length > 0)) {
       const kitFile = await KitFile.findOne({ kitName: txn.kit_name });
       if (kitFile) {
+        const matchKeyFor = c => row =>
+          (row.cube || "") === (c.cube_no || "") &&
+          (row.box || "") === (c.box_no || "") &&
+          (row.items || "") === (c.item_name || "") &&
+          (row.batchNo || "") === (c.batch_no || "");
+
+        for (const chg of oemTypeChanges) {
+          const idx = kitFile.data.findIndex(matchKeyFor(chg));
+          if (idx !== -1) {
+            if (!kitFile.data[idx].oem && chg.oem) kitFile.data[idx].oem = chg.oem;
+            if (!kitFile.data[idx].itemType && chg.item_type) kitFile.data[idx].itemType = chg.item_type;
+          }
+        }
+
         for (const chg of docChanges) {
-          const matchKey = row =>
-            (row.cube || "") === (chg.cube_no || "") &&
-            (row.box || "") === (chg.box_no || "") &&
-            (row.items || "") === (chg.item_name || "") &&
-            (row.batchNo || "") === (chg.batch_no || "");
+          const matchKey = matchKeyFor(chg);
 
           if (!chg.isNewRow) {
             const idx = kitFile.data.findIndex(row => matchKey(row) && !row.document && !row.link);
@@ -476,7 +562,7 @@ router.post("/:id/sync", ...adminOnly, async (req, res) => {
     }
 
     res.json({
-      msg: `Synced — ${docsUpdated} document(s) updated${rowsAdded > 0 ? ` (${rowsAdded} new row(s) added for extra documents)` : ""}, ${warningsSet} batch warning(s) flagged, ${warningsCleared} cleared`,
+      msg: `Synced — ${docsUpdated} document(s) updated${rowsAdded > 0 ? ` (${rowsAdded} new row(s) added for extra documents)` : ""}, ${oemTypeUpdated} OEM/Type field(s) filled, ${warningsSet} batch warning(s) flagged, ${warningsCleared} cleared`,
     });
   } catch (err) {
     console.error("Sync error:", err.message);
@@ -519,6 +605,7 @@ router.post("/:id/finalize", ...adminOnly, async (req, res) => {
       batchNo: it.batch_no || "",
       document: it.document_name || "",
       link: it.document_url || "",
+      assemblyDetail: it.assembly_detail || null,
     }));
     const summaryStats = summarizeKitData(mapped);
 

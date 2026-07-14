@@ -963,6 +963,12 @@ tr:hover td {
   }
 }
 
+@keyframes progressTickPop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 .empty-state {
   text-align: center;
   color: var(--muted);

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../hooks/useAuth";
@@ -106,10 +106,17 @@ function TransactionCard({ txn, isOpen, detail, onToggle, onReload, isAdmin, toa
   const [saving, setSaving] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [expandedRows, setExpandedRows] = useState(new Set());
   const navigate = useNavigate();
 
   const items = detail?.items || [];
   const isDraft = txn.status === "draft";
+
+  const toggleAssembly = (id) => setExpandedRows(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const handleSave = async (form) => {
     if (!form.item_name || !form.item_name.trim()) { toast("Item name is required", "error"); return; }
@@ -238,18 +245,30 @@ function TransactionCard({ txn, isOpen, detail, onToggle, onReload, isAdmin, toa
                   <tbody>
                     {items.length === 0 ? (
                       <tr><td colSpan={isAdmin && isDraft ? 10 : 9} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No rows</td></tr>
-                    ) : items.map(it => (
-                      <tr key={it.id} style={
-                        it.is_flagged ? { background: "#fef2f2" }
-                        : it.batch_status_warning ? { background: "#fff7ed" }
-                        : undefined
-                      }>
+                    ) : items.map(it => {
+                      const hasAssembly = Array.isArray(it.assembly_detail) && it.assembly_detail.length > 0;
+                      const isExpanded = expandedRows.has(it.id);
+                      const rowBg = it.is_flagged ? "#fef2f2" : it.batch_status_warning ? "#fff7ed" : undefined;
+                      return (
+                      <Fragment key={it.id}>
+                      <tr
+                        onClick={hasAssembly ? () => toggleAssembly(it.id) : undefined}
+                        style={{ background: rowBg, cursor: hasAssembly ? "pointer" : undefined }}
+                      >
                         <td>{it.cube_no || "—"}</td>
                         <td>{it.box_no || "—"}</td>
                         <td style={{ fontWeight: 500 }}>
-                          {!!it.is_flagged && <span title="Allocation incomplete — check batch/expiry" style={{ marginRight: 6 }}>⚠</span>}
-                          {!!it.batch_status_warning && <span title="This batch's status has changed since allocation (recalled/expired/quarantined) — verify before shipping" style={{ marginRight: 6 }}>🚫</span>}
-                          {it.item_name || "—"}
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            {hasAssembly && (
+                              <span style={{
+                                display: "inline-block", flex: "none", color: "var(--muted)",
+                                transition: "transform .15s", transform: isExpanded ? "rotate(90deg)" : "none",
+                              }}>▸</span>
+                            )}
+                            {!!it.is_flagged && <span title="Allocation incomplete — check batch/expiry">⚠</span>}
+                            {!!it.batch_status_warning && <span title="This batch's status has changed since allocation (recalled/expired/quarantined) — verify before shipping">🚫</span>}
+                            {it.item_name || "—"}
+                          </div>
                         </td>
                         <td>{it.brand || "—"}</td>
                         <td>{it.oem || "—"}</td>
@@ -258,19 +277,57 @@ function TransactionCard({ txn, isOpen, detail, onToggle, onReload, isAdmin, toa
                         <td>{it.expiry_date ? new Date(it.expiry_date).toLocaleDateString("en-IN") : "—"}</td>
                         <td>
                           {it.document_url
-                            ? <a href={it.document_url} target="_blank" rel="noreferrer">{it.document_name || "Link"}</a>
+                            ? <a href={it.document_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}>{it.document_name || "Link"}</a>
                             : (it.document_name || "—")}
                         </td>
                         {isAdmin && isDraft && (
                           <td>
-                            <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
+                            <div className="flex gap-2" style={{ flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>
                               <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(it)}>Edit</button>
                               <button className="btn btn-danger btn-sm" onClick={() => handleDelete(it)}>Delete</button>
                             </div>
                           </td>
                         )}
                       </tr>
-                    ))}
+                      {hasAssembly && isExpanded && (
+                        <tr>
+                          <td colSpan={isAdmin && isDraft ? 10 : 9} style={{ background: "var(--bg-alt, #f9fafb)", padding: "10px 18px" }}>
+                            <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+                              <thead>
+                                <tr style={{ color: "var(--muted)" }}>
+                                  <th style={{ textAlign: "left", padding: "3px 8px", fontWeight: 600 }}>Component</th>
+                                  <th style={{ textAlign: "left", padding: "3px 8px", fontWeight: 600 }}>Qty used</th>
+                                  <th style={{ textAlign: "left", padding: "3px 8px", fontWeight: 600 }}>Batch(es)</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {it.assembly_detail.map((d, di) => (
+                                  <tr key={di}>
+                                    <td style={{ padding: "3px 8px" }}>{d.component_name}</td>
+                                    <td style={{ padding: "3px 8px", fontVariantNumeric: "tabular-nums" }}>{d.total_qty}</td>
+                                    <td style={{ padding: "3px 8px" }}>
+                                      {d.batches.map((b, bi) => (
+                                        <span key={bi} style={{
+                                          display: "inline-block", fontFamily: "monospace", fontSize: 11,
+                                          marginRight: 6, marginBottom: 2, padding: "1px 6px", borderRadius: 5,
+                                          border: `1px solid ${d.batches.length > 1 ? "#fbd38d" : "var(--border)"}`,
+                                          color: d.batches.length > 1 ? "#92400e" : "inherit",
+                                        }}>
+                                          {b.batch_no || "—"}{d.batches.length > 1 ? ` ×${b.qty}` : ""}
+                                        </span>
+                                      ))}
+                                      {d.qty_short > 0 && <span style={{ color: "#dc2626", fontSize: 11 }}> ⚠ short {d.qty_short}</span>}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

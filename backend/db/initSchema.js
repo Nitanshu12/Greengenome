@@ -405,6 +405,18 @@ async function initSchema() {
       if (!e.message.includes('Duplicate column name')) throw e;
     }
 
+    // Per-component batch breakdown for sub-kit rows — which raw-item
+    // batch(es) actually fed this sub-kit placement. Null for raw-item rows
+    // (they already show one batch directly via batch_no).
+    try {
+      await conn.query(`
+        ALTER TABLE inventory_transaction_items
+          ADD COLUMN assembly_detail JSON DEFAULT NULL
+      `);
+    } catch (e) {
+      if (!e.message.includes('Duplicate column name')) throw e;
+    }
+
     // Outward reason tracking — why stock is leaving (sale vs demonstration;
     // Kit Generation has its own separate assembled_kits/inventory_transactions
     // flow and never touches delivery_challans). is_returnable + the two date
