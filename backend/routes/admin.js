@@ -3,8 +3,8 @@ const multer = require("multer");
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-const User = require("../models/User");
-const { KitFile } = require("../models/Kit");
+const bcrypt = require("bcryptjs");
+const pool = require("../db/postgres");
 const { sheetJsonToKitData, summarizeKitData } = require("../utils/kitExcel");
 const { requireLogin, requireRole } = require("../middleware/auth");
 
@@ -52,30 +52,35 @@ router.post(
 
       if (!rawRows.length) return res.status(400).json({ error: "Excel file is empty" });
 
-      const prev = await KitFile.findOne({ kitName });
-      if (prev && prev.storedFile) {
-        const oldPath = path.join(__dirname, "../uploads", prev.storedFile);
+      const [[prev]] = await pool.query(
+        "SELECT stored_file FROM kit_files WHERE kit_name = ?", [kitName]
+      );
+      if (prev && prev.stored_file) {
+        const oldPath = path.join(__dirname, "../uploads", prev.stored_file);
         if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
       }
 
-      await KitFile.deleteOne({ kitName });
+      await pool.query("DELETE FROM kit_files WHERE kit_name = ?", [kitName]);
 
       const mapped = sheetJsonToKitData(rawRows);
       const summaryStats = summarizeKitData(mapped);
 
-      await KitFile.create({
-        kitName,
-        originalFile: req.file.originalname,
-        storedFile: req.file.filename,
-        rowCount: rawRows.length,
-        uploadedBy: req.session.user.id,
-        summaryStats: {
-          brandCounts: summaryStats.brandCounts,
-          expired: summaryStats.expired,
-          warning: summaryStats.warning
-        },
-        data: mapped
-      });
+      await pool.query(
+        `INSERT INTO kit_files
+           (kit_name, original_file, stored_file, row_count, uploaded_by, brand_counts, expired_count, warning_count, data)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          kitName,
+          req.file.originalname,
+          req.file.filename,
+          rawRows.length,
+          req.session.user.id,
+          JSON.stringify(summaryStats.brandCounts),
+          summaryStats.expired,
+          summaryStats.warning,
+          JSON.stringify(mapped),
+        ]
+      );
 
       res.json({ msg: `Uploaded ${rawRows.length} rows for kit "${kitName}"`, rows: rawRows.length });
     } catch (err) {
@@ -91,7 +96,14 @@ router.post(
 // ════════════════════════════════════════════════════════════
 router.get("/kits", requireLogin, requireRole("admin", "superadmin"), async (req, res) => {
   try {
-    const kits = await KitFile.find().sort({ createdAt: -1 }).populate("uploadedBy", "username");
+    const [kits] = await pool.query(
+      `SELECT kf.id AS _id, kf.kit_name AS kitName, kf.original_file AS originalFile,
+              kf.stored_file AS storedFile, kf.row_count AS rowCount, kf.created_at AS createdAt,
+              u.username AS uploadedByUsername
+       FROM kit_files kf
+       LEFT JOIN users u ON u.id = kf.uploaded_by
+       ORDER BY kf.created_at DESC`
+    );
     res.json({ data: kits });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -106,10 +118,13 @@ router.delete("/kits/:kitName", requireLogin, requireRole("admin", "superadmin")
   try {
     const kitName = decodeURIComponent(req.params.kitName);
 
-    const kitFile = await KitFile.findOneAndDelete({ kitName });
+    const [[kitFile]] = await pool.query(
+      "SELECT stored_file FROM kit_files WHERE kit_name = ?", [kitName]
+    );
+    await pool.query("DELETE FROM kit_files WHERE kit_name = ?", [kitName]);
 
-    if (kitFile && kitFile.storedFile) {
-      const filePath = path.join(__dirname, "../uploads", kitFile.storedFile);
+    if (kitFile && kitFile.stored_file) {
+      const filePath = path.join(__dirname, "../uploads", kitFile.stored_file);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
 
@@ -126,7 +141,9 @@ router.delete("/kits/:kitName", requireLogin, requireRole("admin", "superadmin")
 // GET /api/admin/users
 router.get("/users", requireLogin, requireRole("admin", "superadmin"), async (req, res) => {
   try {
-    const users = await User.find({}, "-password").sort({ createdAt: -1 });
+    const [users] = await pool.query(
+      "SELECT id AS _id, username, role, disabled, created_at AS createdAt FROM users ORDER BY created_at DESC"
+    );
     res.json({ data: users });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -139,11 +156,15 @@ router.post("/users", requireLogin, requireRole("admin", "superadmin"), async (r
     const { username, password, role } = req.body;
     if (!username || !password) return res.status(400).json({ error: "Username & password required" });
 
-    const exists = await User.findOne({ username });
+    const [[exists]] = await pool.query("SELECT id FROM users WHERE username = ?", [username]);
     if (exists) return res.status(400).json({ error: "User already exists" });
 
-    const user = await User.create({ username, password, role: role || "user" });
-    res.json({ msg: "User created", user: { id: user._id, username: user.username, role: user.role } });
+    const passwordHash = await bcrypt.hash(password, 10);
+    const [result] = await pool.query(
+      "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+      [username, passwordHash, role || "user"]
+    );
+    res.json({ msg: "User created", user: { id: result.insertId, username, role: role || "user" } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -155,7 +176,7 @@ router.delete("/users/:id", requireLogin, requireRole("admin", "superadmin"), as
     if (req.params.id === req.session.user.id.toString())
       return res.status(400).json({ error: "Cannot delete yourself" });
 
-    await User.findByIdAndDelete(req.params.id);
+    await pool.query("DELETE FROM users WHERE id = ?", [req.params.id]);
     res.json({ msg: "User deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -165,11 +186,12 @@ router.delete("/users/:id", requireLogin, requireRole("admin", "superadmin"), as
 // PATCH /api/admin/users/:id/toggle
 router.patch("/users/:id/toggle", requireLogin, requireRole("admin", "superadmin"), async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const [[user]] = await pool.query("SELECT disabled FROM users WHERE id = ?", [req.params.id]);
     if (!user) return res.status(404).json({ error: "User not found" });
-    user.disabled = !user.disabled;
-    await user.save();
-    res.json({ msg: `User ${user.disabled ? "disabled" : "enabled"}`, disabled: user.disabled });
+
+    const newDisabled = user.disabled ? 0 : 1;
+    await pool.query("UPDATE users SET disabled = ? WHERE id = ?", [newDisabled, req.params.id]);
+    res.json({ msg: `User ${newDisabled ? "disabled" : "enabled"}`, disabled: !!newDisabled });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -180,10 +202,12 @@ router.patch("/users/:id/password", requireLogin, requireRole("admin", "superadm
   try {
     const { password } = req.body;
     if (!password) return res.status(400).json({ error: "Password required" });
-    const user = await User.findById(req.params.id);
+
+    const [[user]] = await pool.query("SELECT id FROM users WHERE id = ?", [req.params.id]);
     if (!user) return res.status(404).json({ error: "User not found" });
-    user.password = password; // pre-save hook will hash it
-    await user.save();
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    await pool.query("UPDATE users SET password_hash = ? WHERE id = ?", [passwordHash, req.params.id]);
     res.json({ msg: "Password reset" });
   } catch (err) {
     res.status(500).json({ error: err.message });

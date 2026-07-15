@@ -2,7 +2,6 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
-const { KitFile } = require("../models/Kit");
 const { summarizeKitData } = require("../utils/kitExcel");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
@@ -392,10 +391,10 @@ router.delete("/:id/items/:item_id", ...adminOnly, async (req, res) => {
 //     is not the manual "Add Row" removed earlier: every field is sourced
 //     from real data (item_code/batch_id/item_documents), never typed in.
 // Works on draft or finalized transactions (not cancelled). For a finalized
-// transaction, changes are also patched into the Mongo KitFile snapshot so
+// transaction, changes are also patched into the kit_files snapshot so
 // Packages.jsx picks them up — matched by (cube, box, item, batch) content
 // rather than array index, since deleted draft rows would have left gaps in
-// row_order that no longer line up with KitFile.data.
+// row_order that no longer line up with kit_files.data.
 router.post("/:id/sync", ...adminOnly, async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -520,8 +519,11 @@ router.post("/:id/sync", ...adminOnly, async (req, res) => {
     if (txn.status === "draft" && rowsAdded > 0) await refreshFlaggedCount(req.params.id);
 
     if (txn.status === "finalized" && (docChanges.length > 0 || oemTypeChanges.length > 0)) {
-      const kitFile = await KitFile.findOne({ kitName: txn.kit_name });
+      const [[kitFile]] = await pool.query(
+        "SELECT id, data FROM kit_files WHERE kit_name = ?", [txn.kit_name]
+      );
       if (kitFile) {
+        const data = kitFile.data;
         const matchKeyFor = c => row =>
           (row.cube || "") === (c.cube_no || "") &&
           (row.box || "") === (c.box_no || "") &&
@@ -529,10 +531,10 @@ router.post("/:id/sync", ...adminOnly, async (req, res) => {
           (row.batchNo || "") === (c.batch_no || "");
 
         for (const chg of oemTypeChanges) {
-          const idx = kitFile.data.findIndex(matchKeyFor(chg));
+          const idx = data.findIndex(matchKeyFor(chg));
           if (idx !== -1) {
-            if (!kitFile.data[idx].oem && chg.oem) kitFile.data[idx].oem = chg.oem;
-            if (!kitFile.data[idx].itemType && chg.item_type) kitFile.data[idx].itemType = chg.item_type;
+            if (!data[idx].oem && chg.oem) data[idx].oem = chg.oem;
+            if (!data[idx].itemType && chg.item_type) data[idx].itemType = chg.item_type;
           }
         }
 
@@ -540,37 +542,39 @@ router.post("/:id/sync", ...adminOnly, async (req, res) => {
           const matchKey = matchKeyFor(chg);
 
           if (!chg.isNewRow) {
-            const idx = kitFile.data.findIndex(row => matchKey(row) && !row.document && !row.link);
+            const idx = data.findIndex(row => matchKey(row) && !row.document && !row.link);
             if (idx !== -1) {
-              kitFile.data[idx].document = chg.document_name || "";
-              kitFile.data[idx].link = chg.document_url || "";
+              data[idx].document = chg.document_name || "";
+              data[idx].link = chg.document_url || "";
             }
             continue;
           }
 
-          const idx = kitFile.data.findIndex(matchKey);
-          const anchor = idx !== -1 ? kitFile.data[idx] : {};
+          const idx = data.findIndex(matchKey);
+          const anchor = idx !== -1 ? data[idx] : {};
           const newEntry = {
-            rowNo: kitFile.data.length + 1,
+            rowNo: data.length + 1,
             cube: chg.cube_no || "", box: chg.box_no || "",
             items: chg.item_name || "", brand: anchor.brand || "", oem: anchor.oem || "",
             itemType: anchor.itemType || "", expiry: anchor.expiry || "", batchNo: chg.batch_no || "",
             document: chg.document_name || "", link: chg.document_url || "",
           };
-          if (idx !== -1) kitFile.data.splice(idx + 1, 0, newEntry);
-          else kitFile.data.push(newEntry);
+          if (idx !== -1) data.splice(idx + 1, 0, newEntry);
+          else data.push(newEntry);
         }
 
-        kitFile.data.forEach((row, i) => { row.rowNo = i + 1; });
-        kitFile.rowCount = kitFile.data.length;
-        const summaryStats = summarizeKitData(kitFile.data);
-        kitFile.summaryStats = {
-          brandCounts: summaryStats.brandCounts,
-          expired: summaryStats.expired,
-          warning: summaryStats.warning,
-        };
-        kitFile.markModified("data");
-        await kitFile.save();
+        data.forEach((row, i) => { row.rowNo = i + 1; });
+        const summaryStats = summarizeKitData(data);
+        await pool.query(
+          `UPDATE kit_files
+           SET data = ?, row_count = ?, brand_counts = ?, expired_count = ?, warning_count = ?
+           WHERE id = ?`,
+          [
+            JSON.stringify(data), data.length,
+            JSON.stringify(summaryStats.brandCounts), summaryStats.expired, summaryStats.warning,
+            kitFile.id,
+          ]
+        );
       }
     }
 
@@ -586,9 +590,9 @@ router.post("/:id/sync", ...adminOnly, async (req, res) => {
 });
 
 // POST /api/inventory-transactions/:id/finalize  (admin)
-// Pushes the current draft rows straight into Kits Information (KitFile in
-// MongoDB) — the same document shape the manual Excel upload produces — so
-// it shows up in Packages/Dashboard immediately, no re-upload needed.
+// Pushes the current draft rows straight into Kits Information (kit_files) —
+// the same row shape the manual Excel upload produces — so it shows up in
+// Packages/Dashboard immediately, no re-upload needed.
 router.post("/:id/finalize", ...adminOnly, async (req, res) => {
   try {
     const [[txn]] = await pool.query(`SELECT * FROM inventory_transactions WHERE id = ?`, [req.params.id]);
@@ -601,7 +605,9 @@ router.post("/:id/finalize", ...adminOnly, async (req, res) => {
     );
     if (!items.length) return res.status(400).json({ error: "Transaction has no rows to generate" });
 
-    const existingKitFile = await KitFile.findOne({ kitName: txn.kit_name });
+    const [[existingKitFile]] = await pool.query(
+      "SELECT id FROM kit_files WHERE kit_name = ?", [txn.kit_name]
+    );
     if (existingKitFile) {
       return res.status(409).json({ error: `Kits Information already has a kit named "${txn.kit_name}". Rename or delete the existing one first.` });
     }
@@ -622,19 +628,20 @@ router.post("/:id/finalize", ...adminOnly, async (req, res) => {
     }));
     const summaryStats = summarizeKitData(mapped);
 
-    await KitFile.create({
-      kitName: txn.kit_name,
-      originalFile: null,
-      storedFile: null,
-      rowCount: mapped.length,
-      uploadedBy: req.session.user?.id || null,
-      summaryStats: {
-        brandCounts: summaryStats.brandCounts,
-        expired: summaryStats.expired,
-        warning: summaryStats.warning,
-      },
-      data: mapped,
-    });
+    await pool.query(
+      `INSERT INTO kit_files
+         (kit_name, original_file, stored_file, row_count, uploaded_by, brand_counts, expired_count, warning_count, data)
+       VALUES (?, NULL, NULL, ?, ?, ?, ?, ?, ?)`,
+      [
+        txn.kit_name,
+        mapped.length,
+        req.session.user?.id || null,
+        JSON.stringify(summaryStats.brandCounts),
+        summaryStats.expired,
+        summaryStats.warning,
+        JSON.stringify(mapped),
+      ]
+    );
 
     await pool.query(
       `UPDATE inventory_transactions SET status = 'finalized', finalized_at = NOW() WHERE id = ?`,

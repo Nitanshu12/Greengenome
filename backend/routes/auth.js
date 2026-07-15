@@ -1,5 +1,6 @@
 const router = require("express").Router();
-const User = require("../models/User");
+const bcrypt = require("bcryptjs");
+const pool = require("../db/postgres");
 
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
@@ -9,21 +10,24 @@ router.post("/login", async (req, res) => {
     if (!username || !password)
       return res.status(400).json({ error: "Username and password required" });
 
-    const user = await User.findOne({ username: username.trim() });
+    const [[user]] = await pool.query(
+      "SELECT id, username, password_hash, role, disabled FROM users WHERE username = ?",
+      [username.trim()]
+    );
 
     if (!user) return res.status(401).json({ error: "Invalid credentials" });
     if (user.disabled) return res.status(403).json({ error: "Account disabled" });
 
-    const match = await user.comparePassword(password);
+    const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(401).json({ error: "Invalid credentials" });
 
     // Save to session — explicit save() ensures the cookie is written
-    // before the response is sent (avoids race with async MongoStore)
+    // before the response is sent (avoids race with async session store)
     req.session.user = {
-      id: user._id,
+      id: user.id,
       username: user.username,
       role: user.role,
-      disabled: user.disabled
+      disabled: !!user.disabled
     };
 
     req.session.save((err) => {

@@ -2,26 +2,24 @@ const router = require("express").Router();
 const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
-const { KitFile } = require("../models/Kit");
+const pool = require("../db/postgres");
 const { loadKitDataFromFile, summarizeKitData } = require("../utils/kitExcel");
 const { requireLogin } = require("../middleware/auth");
 
 const uploadsDir = path.join(__dirname, "../uploads");
 
-/** Legacy KitFile docs may lack summaryStats — derive from the stored Excel once per request. */
-function effectiveSummaryStats(kitLean) {
-  const s = kitLean.summaryStats;
+/** Legacy kit_files rows may lack brand_counts/expired_count/warning_count — derive from the stored Excel once per request. */
+function effectiveSummaryStats(kitRow) {
   if (
-    s &&
-    typeof s.expired === "number" &&
-    typeof s.warning === "number" &&
-    s.brandCounts &&
-    typeof s.brandCounts === "object"
+    kitRow.brand_counts &&
+    typeof kitRow.brand_counts === "object" &&
+    typeof kitRow.expired_count === "number" &&
+    typeof kitRow.warning_count === "number"
   ) {
-    return s;
+    return { brandCounts: kitRow.brand_counts, expired: kitRow.expired_count, warning: kitRow.warning_count };
   }
-  if (!kitLean.storedFile) return { brandCounts: {}, expired: 0, warning: 0 };
-  const filePath = path.join(uploadsDir, kitLean.storedFile);
+  if (!kitRow.stored_file) return { brandCounts: {}, expired: 0, warning: 0 };
+  const filePath = path.join(uploadsDir, kitRow.stored_file);
   if (!fs.existsSync(filePath)) return { brandCounts: {}, expired: 0, warning: 0 };
   const rows = loadKitDataFromFile(filePath);
   return summarizeKitData(rows);
@@ -33,8 +31,8 @@ function effectiveSummaryStats(kitLean) {
 // ════════════════════════════════════════════════════════════
 router.get("/kits", requireLogin, async (req, res) => {
   try {
-    const kits = await KitFile.distinct("kitName");
-    res.json({ kits: kits.sort() });
+    const [rows] = await pool.query("SELECT DISTINCT kit_name FROM kit_files");
+    res.json({ kits: rows.map(r => r.kit_name).sort() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -47,7 +45,9 @@ router.get("/kits", requireLogin, async (req, res) => {
 router.get("/kits/:kitName/data", requireLogin, async (req, res) => {
   try {
     const kitName = decodeURIComponent(req.params.kitName);
-    const kitFile = await KitFile.findOne({ kitName });
+    const [[kitFile]] = await pool.query(
+      "SELECT data, stored_file FROM kit_files WHERE kit_name = ?", [kitName]
+    );
     if (!kitFile) {
       return res.json({ data: [] });
     }
@@ -56,10 +56,10 @@ router.get("/kits/:kitName/data", requireLogin, async (req, res) => {
       return res.json({ data: kitFile.data });
     }
 
-    if (!kitFile.storedFile) {
+    if (!kitFile.stored_file) {
       return res.json({ data: [] });
     }
-    const filePath = path.join(uploadsDir, kitFile.storedFile);
+    const filePath = path.join(uploadsDir, kitFile.stored_file);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: "File missing on server" });
     }
@@ -76,18 +76,20 @@ router.get("/kits/:kitName/data", requireLogin, async (req, res) => {
 // ════════════════════════════════════════════════════════════
 router.get("/dashboard", requireLogin, async (req, res) => {
   try {
-    const files = await KitFile.find().lean();
+    const [files] = await pool.query(
+      "SELECT kit_name, row_count, brand_counts, expired_count, warning_count, stored_file FROM kit_files"
+    );
 
     const kits = files.length;
-    const totalItems = files.reduce((s, f) => s + (f.rowCount || 0), 0);
+    const totalItems = files.reduce((s, f) => s + (f.row_count || 0), 0);
     const totalFiles = files.length;
 
     const sortedByCount = [...files].sort(
-      (a, b) => (b.rowCount || 0) - (a.rowCount || 0)
+      (a, b) => (b.row_count || 0) - (a.row_count || 0)
     );
     const itemsPerKit = sortedByCount.map(f => ({
-      _id: f.kitName,
-      count: f.rowCount || 0
+      _id: f.kit_name,
+      count: f.row_count || 0
     }));
 
     const mergedBrands = {};
@@ -137,7 +139,9 @@ router.get("/dashboard", requireLogin, async (req, res) => {
 router.get("/kits/:kitName/download", requireLogin, async (req, res) => {
   try {
     const kitName = decodeURIComponent(req.params.kitName);
-    const kitFile = await KitFile.findOne({ kitName });
+    const [[kitFile]] = await pool.query(
+      "SELECT data, stored_file FROM kit_files WHERE kit_name = ?", [kitName]
+    );
     if (!kitFile) {
       return res.status(404).json({ error: "No data found for this kit" });
     }
@@ -145,8 +149,8 @@ router.get("/kits/:kitName/download", requireLogin, async (req, res) => {
     let data = [];
     if (kitFile.data && kitFile.data.length > 0) {
       data = kitFile.data;
-    } else if (kitFile.storedFile) {
-      const filePath = path.join(uploadsDir, kitFile.storedFile);
+    } else if (kitFile.stored_file) {
+      const filePath = path.join(uploadsDir, kitFile.stored_file);
       if (fs.existsSync(filePath)) {
         data = loadKitDataFromFile(filePath);
       }
@@ -190,16 +194,18 @@ router.get("/kits/:kitName/download", requireLogin, async (req, res) => {
 router.get("/kits/:kitName/download-original", requireLogin, async (req, res) => {
   try {
     const kitName = decodeURIComponent(req.params.kitName);
-    const kitFile = await KitFile.findOne({ kitName });
+    const [[kitFile]] = await pool.query(
+      "SELECT stored_file, original_file FROM kit_files WHERE kit_name = ?", [kitName]
+    );
 
     if (!kitFile) return res.status(404).json({ error: "Original file not found" });
 
-    const filePath = path.join(uploadsDir, kitFile.storedFile);
-    if (!fs.existsSync(filePath)) {
+    const filePath = path.join(uploadsDir, kitFile.stored_file || "");
+    if (!kitFile.stored_file || !fs.existsSync(filePath)) {
       return res.redirect(`/api/kits/${encodeURIComponent(kitName)}/download`);
     }
 
-    res.download(filePath, kitFile.originalFile);
+    res.download(filePath, kitFile.original_file);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

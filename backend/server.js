@@ -1,14 +1,13 @@
 require("dotenv").config();
 const express = require("express");
-const mongoose = require("mongoose");
 const session = require("express-session");
-const MongoStore = require("connect-mongo");
+const MySQLStore = require("express-mysql-session")(session);
 const cors = require("cors");
 const path = require("path");
+const pool = require("./db/postgres");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/dashboard";
 const isProd = process.env.NODE_ENV === "production";
 
 // Render / reverse proxy — required for secure cookies and correct client IP
@@ -16,19 +15,6 @@ if (process.env.TRUST_PROXY !== "false") {
   app.set("trust proxy", 1);
 }
 
-// ── Connect MongoDB ───────────────────────────────────────────
-mongoose.connect(MONGO_URI)
-  .then(async () => {
-    console.log("✅ MongoDB connected");
-
-    
-    const User = require("./models/User");
-    const exists = await User.findOne({ username: "admin" });
-  })
-  .catch(err => {
-    console.error("❌ MongoDB connection failed:", err.message);
-    process.exit(1);
-  });
 app.use((req, res, next) => {
     if (req.url === '/' || req.url.endsWith('.html')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -96,13 +82,20 @@ const sessionCookieSecure =
       ? false
       : isProd;
 
-// Session — stored in MongoDB so it survives restarts
+// Session — stored in MariaDB (same pool as everything else) so it survives
+// restarts, and so every request's session check is a local query instead of
+// a round trip to a separate database.
+const sessionStore = new MySQLStore({}, pool);
+sessionStore.onReady().catch(err => {
+  console.error("❌ Session store failed to initialize:", err.message);
+});
+
 const sessionMw = session({
   secret: process.env.SESSION_SECRET || "change-me-in-production",
   resave: false,
   saveUninitialized: false,
   name: "sid",
-  store: MongoStore.create({ mongoUrl: MONGO_URI }),
+  store: sessionStore,
   cookie: {
     httpOnly: true,
     secure: sessionCookieSecure,
@@ -111,7 +104,7 @@ const sessionMw = session({
   }
 });
 
-// Skip session on OPTIONS so preflight never hits Mongo/session (avoids 500s without CORS headers)
+// Skip session on OPTIONS so preflight never hits the session store (avoids 500s without CORS headers)
 app.use((req, res, next) => {
   if (req.method === "OPTIONS") return next();
   sessionMw(req, res, next);

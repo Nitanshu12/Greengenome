@@ -461,6 +461,40 @@ async function initSchema() {
         MODIFY COLUMN status ENUM('confirmed','cancelled','returned') NOT NULL DEFAULT 'confirmed'
     `);
 
+    // Replaces the Mongoose User model — login accounts now live here so
+    // auth no longer depends on a MongoDB round trip.
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        username      VARCHAR(100) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        role          ENUM('superadmin','admin','user') NOT NULL DEFAULT 'user',
+        disabled      TINYINT(1) NOT NULL DEFAULT 0,
+        created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB
+    `);
+
+    // Replaces the Mongoose KitFile model. `data` stays a single JSON blob
+    // per kit (mirroring the old Mongo document shape) rather than one row
+    // per item — a kit can carry 1500+ rows, and this keeps Kits
+    // Information/Dashboard reads to one query per kit instead of thousands.
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS kit_files (
+        id             INT AUTO_INCREMENT PRIMARY KEY,
+        kit_name       VARCHAR(255) NOT NULL UNIQUE,
+        original_file  VARCHAR(500) DEFAULT NULL,
+        stored_file    VARCHAR(500) DEFAULT NULL,
+        row_count      INT NOT NULL DEFAULT 0,
+        uploaded_by    INT DEFAULT NULL,
+        brand_counts   JSON DEFAULT NULL,
+        expired_count  INT NOT NULL DEFAULT 0,
+        warning_count  INT NOT NULL DEFAULT 0,
+        data           JSON NOT NULL,
+        created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+      ) ENGINE=InnoDB
+    `);
+
     console.log("✅ MariaDB schema ready");
   } catch (err) {
     console.error("❌ MariaDB schema init failed:", err.message);
