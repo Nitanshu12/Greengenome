@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
 const { summarizeKitData } = require("../utils/kitExcel");
+const { parseJsonColumn } = require("../utils/jsonColumn");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
 
@@ -263,6 +264,7 @@ router.get("/:id", requireLogin, async (req, res) => {
       `SELECT * FROM inventory_transaction_items WHERE transaction_id = ? ORDER BY row_order ASC, id ASC`,
       [req.params.id]
     );
+    items.forEach(it => { it.assembly_detail = parseJsonColumn(it.assembly_detail); });
     res.json({ transaction: txn, items });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -406,6 +408,7 @@ router.post("/:id/sync", ...adminOnly, async (req, res) => {
       `SELECT * FROM inventory_transaction_items WHERE transaction_id = ?`,
       [req.params.id]
     );
+    items.forEach(it => { it.assembly_detail = parseJsonColumn(it.assembly_detail); });
 
     let docsUpdated = 0, rowsAdded = 0, warningsSet = 0, warningsCleared = 0, oemTypeUpdated = 0;
     // { cube_no, box_no, item_name, batch_no, document_name, document_url, isNewRow }
@@ -523,7 +526,7 @@ router.post("/:id/sync", ...adminOnly, async (req, res) => {
         "SELECT id, data FROM kit_files WHERE kit_name = ?", [txn.kit_name]
       );
       if (kitFile) {
-        const data = kitFile.data;
+        const data = parseJsonColumn(kitFile.data);
         const matchKeyFor = c => row =>
           (row.cube || "") === (c.cube_no || "") &&
           (row.box || "") === (c.box_no || "") &&
@@ -624,7 +627,7 @@ router.post("/:id/finalize", ...adminOnly, async (req, res) => {
       batchNo: it.batch_no || "",
       document: it.document_name || "",
       link: it.document_url || "",
-      assemblyDetail: it.assembly_detail || null,
+      assemblyDetail: parseJsonColumn(it.assembly_detail),
     }));
     const summaryStats = summarizeKitData(mapped);
 

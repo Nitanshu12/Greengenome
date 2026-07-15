@@ -4,19 +4,21 @@ const path = require("path");
 const fs = require("fs");
 const pool = require("../db/postgres");
 const { loadKitDataFromFile, summarizeKitData } = require("../utils/kitExcel");
+const { parseJsonColumn } = require("../utils/jsonColumn");
 const { requireLogin } = require("../middleware/auth");
 
 const uploadsDir = path.join(__dirname, "../uploads");
 
 /** Legacy kit_files rows may lack brand_counts/expired_count/warning_count — derive from the stored Excel once per request. */
 function effectiveSummaryStats(kitRow) {
+  const brandCounts = parseJsonColumn(kitRow.brand_counts);
   if (
-    kitRow.brand_counts &&
-    typeof kitRow.brand_counts === "object" &&
+    brandCounts &&
+    typeof brandCounts === "object" &&
     typeof kitRow.expired_count === "number" &&
     typeof kitRow.warning_count === "number"
   ) {
-    return { brandCounts: kitRow.brand_counts, expired: kitRow.expired_count, warning: kitRow.warning_count };
+    return { brandCounts, expired: kitRow.expired_count, warning: kitRow.warning_count };
   }
   if (!kitRow.stored_file) return { brandCounts: {}, expired: 0, warning: 0 };
   const filePath = path.join(uploadsDir, kitRow.stored_file);
@@ -52,8 +54,9 @@ router.get("/kits/:kitName/data", requireLogin, async (req, res) => {
       return res.json({ data: [] });
     }
 
-    if (kitFile.data && kitFile.data.length > 0) {
-      return res.json({ data: kitFile.data });
+    const data = parseJsonColumn(kitFile.data);
+    if (data && data.length > 0) {
+      return res.json({ data });
     }
 
     if (!kitFile.stored_file) {
@@ -63,8 +66,8 @@ router.get("/kits/:kitName/data", requireLogin, async (req, res) => {
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: "File missing on server" });
     }
-    const data = loadKitDataFromFile(filePath);
-    res.json({ data });
+    const fallbackData = loadKitDataFromFile(filePath);
+    res.json({ data: fallbackData });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -147,8 +150,9 @@ router.get("/kits/:kitName/download", requireLogin, async (req, res) => {
     }
 
     let data = [];
-    if (kitFile.data && kitFile.data.length > 0) {
-      data = kitFile.data;
+    const parsedData = parseJsonColumn(kitFile.data);
+    if (parsedData && parsedData.length > 0) {
+      data = parsedData;
     } else if (kitFile.stored_file) {
       const filePath = path.join(uploadsDir, kitFile.stored_file);
       if (fs.existsSync(filePath)) {
