@@ -1,5 +1,5 @@
 # Dashboard Deployment Guide
-# Ubuntu VPS + Nginx + Node.js + MongoDB
+# Ubuntu VPS + Nginx + Node.js + MariaDB
 
 # ══════════════════════════════════════════════════════════════
 # STEP 1 — Install dependencies on VPS (run once)
@@ -12,13 +12,12 @@ sudo apt update && sudo apt upgrade -y
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
-# Install MongoDB
-curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
-echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
-sudo apt update
-sudo apt install -y mongodb-org
-sudo systemctl start mongod
-sudo systemctl enable mongod
+# Install MariaDB
+sudo apt install -y mariadb-server
+sudo systemctl start mariadb
+sudo systemctl enable mariadb
+# Then create the database/user referenced by DB_NAME/DB_USER/DB_PASSWORD below
+# (mysql_secure_installation is recommended on a fresh install)
 
 # Install Nginx
 sudo apt install -y nginx
@@ -56,7 +55,10 @@ nano /var/www/dashboard/backend/.env
 
 # Set these values:
 #   PORT=4000
-#   MONGO_URI=mongodb://localhost:27017/dashboard
+#   DB_HOST=localhost
+#   DB_USER=your_db_user
+#   DB_PASSWORD=your_db_password
+#   DB_NAME=your_db_name
 #   SESSION_SECRET=some-very-long-random-string-here
 #   NODE_ENV=production
 
