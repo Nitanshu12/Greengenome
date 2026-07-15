@@ -284,6 +284,7 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
   const [storageLocation, setStorageLocation] = useState("WAREHOUSE");
   const [remarks, setRemarks]                 = useState("");
   const [itemStatuses, setItemStatuses]       = useState({});
+  const [selectedCodes, setSelectedCodes]     = useState(() => new Set());
   const [submitting, setSubmitting]           = useState(false);
 
   const selectedPO = sentPOs.find(p => String(p.id) === String(selectedPoId)) || null;
@@ -298,11 +299,40 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
     const init = {};
     effectiveItems.forEach(i => { init[i.item_code] = { mode: "pending", qty_received: "" }; });
     setItemStatuses(init);
+    setSelectedCodes(new Set());
   }, [selectedPoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFull = (item_code) => {
     const po_qty = effectiveItems.find(i => i.item_code === item_code)?.quantity ?? 0;
     setItemStatuses(prev => ({ ...prev, [item_code]: { mode: "full", qty_received: po_qty } }));
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedCodes(prev =>
+      prev.size === effectiveItems.length
+        ? new Set()
+        : new Set(effectiveItems.map(i => i.item_code))
+    );
+  };
+
+  const toggleSelectOne = (item_code) => {
+    setSelectedCodes(prev => {
+      const next = new Set(prev);
+      next.has(item_code) ? next.delete(item_code) : next.add(item_code);
+      return next;
+    });
+  };
+
+  const handleMarkSelectedFull = () => {
+    setItemStatuses(prev => {
+      const next = { ...prev };
+      selectedCodes.forEach(item_code => {
+        const po_qty = effectiveItems.find(i => i.item_code === item_code)?.quantity ?? 0;
+        next[item_code] = { mode: "full", qty_received: po_qty };
+      });
+      return next;
+    });
+    setSelectedCodes(new Set());
   };
 
   const handleQty = (item_code) => {
@@ -454,10 +484,43 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
               </span>
             </div>
 
+            {/* Bulk action bar — appears once at least one row is checked */}
+            {selectedCodes.size > 0 && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "8px 16px",
+                background: "#eff6ff", borderBottom: "1px solid var(--border)",
+                fontSize: 12,
+              }}>
+                <span style={{ fontWeight: 600, color: "#1d4ed8" }}>
+                  {selectedCodes.size} selected
+                </span>
+                <button onClick={handleMarkSelectedFull}
+                  style={{
+                    background: "#16a34a", color: "#fff",
+                    border: "none", borderRadius: 6, padding: "5px 14px",
+                    cursor: "pointer", fontWeight: 700, fontSize: 12,
+                  }}>
+                  ✓ Mark Selected as Full
+                </button>
+                <button onClick={() => setSelectedCodes(new Set())}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontWeight: 600, fontSize: 12 }}>
+                  Clear
+                </button>
+              </div>
+            )}
+
             <div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "var(--bg-alt, #f8f9fa)", fontSize: 12, color: "var(--muted)" }}>
+                  <th style={{ padding: "7px 10px", textAlign: "center", fontWeight: 600, borderBottom: "1px solid var(--border)", width: "4%" }}>
+                    <input type="checkbox"
+                      checked={selectedCodes.size === effectiveItems.length && effectiveItems.length > 0}
+                      ref={el => { if (el) el.indeterminate = selectedCodes.size > 0 && selectedCodes.size < effectiveItems.length; }}
+                      onChange={toggleSelectAll}
+                      style={{ cursor: "pointer" }} />
+                  </th>
                   <th style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", width: "11%" }}>Code</th>
                   <th style={{ padding: "7px 10px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid var(--border)" }}>Item Name</th>
                   <th style={{ padding: "7px 10px", textAlign: "right", fontWeight: 600, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap", width: "10%" }}>
@@ -486,6 +549,13 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
                       background: rowBg,
                       transition: "background 0.15s",
                     }}>
+                      {/* Select */}
+                      <td style={{ padding: "6px 10px", textAlign: "center" }}>
+                        <input type="checkbox"
+                          checked={selectedCodes.has(item.item_code)}
+                          onChange={() => toggleSelectOne(item.item_code)}
+                          style={{ cursor: "pointer" }} />
+                      </td>
                       {/* Code */}
                       <td style={{ padding: "6px 10px" }}>
                         <span style={{
