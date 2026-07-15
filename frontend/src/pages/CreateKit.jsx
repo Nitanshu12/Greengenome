@@ -590,24 +590,32 @@ export default function CreateKit() {
 
   useEffect(() => { loadActivePOItems(); }, [loadActivePOItems]);
 
-  // Re-fetch pending details whenever the user switches back to this tab.
-  // Covers the common case: user goes to Stock Batches, adds stock, comes back.
+  // Re-fetch on return to this tab — covers the common case: user goes to
+  // Stock Batches, adds stock, comes back. Refreshes kit history, the pending
+  // shortfalls panel (via loadPendingKit), and — if currently viewing the
+  // result table for a kit — that kit's own allocated/shortfall numbers too.
+  // Previously only the pending panel was wired up here, so the main result
+  // view stayed stale (showing pre-receipt numbers) until a hard refresh.
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        loadActivePOItems();
-        if (pendingKit) {
-          setLoadingPending(true);
-          api.getKitDetails(pendingKit.kit_id)
-            .then(data => setPendingDetail(data))
-            .catch(() => {})
-            .finally(() => setLoadingPending(false));
-        }
+      if (document.visibilityState !== "visible") return;
+      loadActivePOItems();
+      api.getKitHistory()
+        .then(d => {
+          const rows = d.data || [];
+          setHistory(rows);
+          loadPendingKit(rows);
+        })
+        .catch(() => {});
+      if (phase === "result" && result) {
+        api.getKitDetails(result.kit_id)
+          .then(details => setResult(kitDetailsToResult(details)))
+          .catch(() => {});
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [pendingKit, loadActivePOItems]);
+  }, [loadActivePOItems, loadPendingKit, phase, result]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
