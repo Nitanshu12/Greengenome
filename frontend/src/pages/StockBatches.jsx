@@ -335,6 +335,23 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
     setSelectedCodes(new Set());
   };
 
+  // Undo: reset every selected row back to pending (bulk version of the per-row ↩ button)
+  const handleClearSelected = () => {
+    setItemStatuses(prev => {
+      const next = { ...prev };
+      selectedCodes.forEach(item_code => {
+        next[item_code] = { mode: "pending", qty_received: "" };
+      });
+      return next;
+    });
+    setSelectedCodes(new Set());
+  };
+
+  // Once every selected row is already marked full, re-marking is a no-op —
+  // swap the bulk button to an undo action instead.
+  const selectedAllAlreadyFull = selectedCodes.size > 0 &&
+    [...selectedCodes].every(code => itemStatuses[code]?.mode === "full");
+
   const handleQty = (item_code) => {
     setItemStatuses(prev => ({ ...prev, [item_code]: { mode: "qty", qty_received: "" } }));
   };
@@ -495,17 +512,28 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
                 <span style={{ fontWeight: 600, color: "#1d4ed8" }}>
                   {selectedCodes.size} selected
                 </span>
-                <button onClick={handleMarkSelectedFull}
-                  style={{
-                    background: "#16a34a", color: "#fff",
-                    border: "none", borderRadius: 6, padding: "5px 14px",
-                    cursor: "pointer", fontWeight: 700, fontSize: 12,
-                  }}>
-                  ✓ Mark Selected as Full
-                </button>
+                {selectedAllAlreadyFull ? (
+                  <button onClick={handleClearSelected}
+                    style={{
+                      background: "#fff", color: "#b45309",
+                      border: "1px solid #fcd34d", borderRadius: 6, padding: "5px 14px",
+                      cursor: "pointer", fontWeight: 700, fontSize: 12,
+                    }}>
+                    ↩ Clear Selected (reset to pending)
+                  </button>
+                ) : (
+                  <button onClick={handleMarkSelectedFull}
+                    style={{
+                      background: "#16a34a", color: "#fff",
+                      border: "none", borderRadius: 6, padding: "5px 14px",
+                      cursor: "pointer", fontWeight: 700, fontSize: 12,
+                    }}>
+                    ✓ Mark Selected as Full
+                  </button>
+                )}
                 <button onClick={() => setSelectedCodes(new Set())}
                   style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontWeight: 600, fontSize: 12 }}>
-                  Clear
+                  Deselect
                 </button>
               </div>
             )}
