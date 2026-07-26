@@ -874,6 +874,7 @@ export default function StockBatches() {
           mfg_date: form.mfg_date,
           expiry_date: form.expiry_date,
           supply_date: form.supply_date,
+          warranty_years: form.warranty_years,
         });
         toast("Batch updated");
       } else {
@@ -1157,6 +1158,7 @@ export default function StockBatches() {
                     <th style={{ width: "6%" }}>Mfg Date</th>
                     <th style={{ width: "7%" }}>Expiry Date</th>
                     <th style={{ width: "6%" }}>Supply Date</th>
+                    <th style={{ width: "6%" }}>Warranty</th>
                     <th style={{ width: "5%", textAlign: "right" }}>Received</th>
                     <th style={{ width: "5%", textAlign: "right" }}>Issued</th>
                     <th style={{ width: "5%", textAlign: "right" }}>In Hand</th>
@@ -1211,6 +1213,10 @@ export default function StockBatches() {
                         {/* Supply Date */}
                         <td style={{ whiteSpace: "nowrap", fontSize: 12, color: "var(--muted)" }}>
                           {formatDateMMM_YY(b.supply_date)}
+                        </td>
+                        {/* Warranty */}
+                        <td style={{ whiteSpace: "nowrap", fontSize: 12, color: "var(--muted)" }}>
+                          {b.warranty_years != null ? `${Number(b.warranty_years)} yr${Number(b.warranty_years) !== 1 ? "s" : ""}` : "—"}
                         </td>
                         <td style={{ textAlign: "right", color: "var(--muted)" }}>
                           {b.qty_received} {b.unit}
@@ -1327,6 +1333,7 @@ export default function StockBatches() {
             mfg_date: editTarget.mfg_date ? editTarget.mfg_date.slice(0, 10) : "",
             expiry_date: editTarget.expiry_date ? editTarget.expiry_date.slice(0, 10) : "",
             supply_date: editTarget.supply_date ? editTarget.supply_date.slice(0, 10) : "",
+            warranty_years: editTarget.warranty_years ?? "",
             qty_received: editTarget.qty_received ?? "",
             unit: editTarget.unit ?? "",
             storage_location: editTarget.storage_location ?? "",

@@ -5,7 +5,7 @@ export const STATUSES = ["active", "expired", "quarantined", "returned"];
 
 export const EMPTY_BATCH_FORM = {
   supplier_batch_no: "", item_code: "", vendor_code: "",
-  mfg_date: "", expiry_date: "", supply_date: "", qty_received: "",
+  mfg_date: "", expiry_date: "", supply_date: "", warranty_years: "", qty_received: "",
   unit: "", storage_location: "", status: "active", remarks: "",
 };
 
@@ -187,13 +187,25 @@ export default function BatchFormModal({ initial, items, vendors, itemVendors, s
           </div>
         </div>
 
-        {/* Supply Date */}
-        <div className="form-group">
-          <label className="form-label">
-            Supply Date
-          </label>
-          <input className="form-input" type="date" value={form.supply_date}
-            onChange={e => set("supply_date", e.target.value)} />
+        {/* Supply Date + Warranty */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="form-group">
+            <label className="form-label">
+              Supply Date
+            </label>
+            <input className="form-input" type="date" value={form.supply_date}
+              onChange={e => set("supply_date", e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">
+              Warranty (Years)
+              <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 6, fontWeight: 400 }}>
+                (optional · fill later)
+              </span>
+            </label>
+            <input className="form-input" type="number" min="0" step="0.5" value={form.warranty_years}
+              onChange={e => set("warranty_years", e.target.value)} placeholder="e.g. 2" />
+          </div>
         </div>
 
         {/* Qty + Status */}

@@ -215,6 +215,9 @@ async function initSchema() {
     // Date the batch was actually supplied/delivered (distinct from mfg_date) — used later for warranty calc
     await conn.query(`ALTER TABLE stock_batches ADD COLUMN IF NOT EXISTS supply_date DATE DEFAULT NULL`);
 
+    // Warranty period in years (fractional allowed, e.g. 1.5) — optional, filled in manually
+    await conn.query(`ALTER TABLE stock_batches ADD COLUMN IF NOT EXISTS warranty_years DECIMAL(4,1) DEFAULT NULL`);
+
     await conn.query(`
       CREATE TABLE IF NOT EXISTS assembled_kits (
         kit_id       INT AUTO_INCREMENT PRIMARY KEY,
