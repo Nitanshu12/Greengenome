@@ -199,9 +199,9 @@ export default function BatchFormModal({ initial, items, vendors, itemVendors, s
           <div className="form-group">
             <label className="form-label">
               Warranty (Years)
-              <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 6, fontWeight: 400 }}>
+              {/* <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 6, fontWeight: 400 }}>
                 (optional · fill later)
-              </span>
+              </span> */}
             </label>
             <input className="form-input" type="number" min="0" step="0.5" value={form.warranty_years}
               onChange={e => set("warranty_years", e.target.value)} placeholder="e.g. 2" />

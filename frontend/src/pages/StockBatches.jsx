@@ -1216,7 +1216,7 @@ export default function StockBatches() {
                         </td>
                         {/* Warranty */}
                         <td style={{ whiteSpace: "nowrap", fontSize: 12, color: "var(--muted)" }}>
-                          {b.warranty_years != null ? `${Number(b.warranty_years)} yr${Number(b.warranty_years) !== 1 ? "s" : ""}` : "—"}
+                          {b.warranty_years != null ? `${Number(b.warranty_years)} yr${Number(b.warranty_years) !== 1 ? "s" : ""}` : "NULL"}
                         </td>
                         <td style={{ textAlign: "right", color: "var(--muted)" }}>
                           {b.qty_received} {b.unit}
