@@ -230,6 +230,13 @@ async function initSchema() {
       ) ENGINE=InnoDB
     `);
 
+    // Ties sibling instances created from one "qty_kits > 1" request back
+    // together for display/combined-ordering — each instance is otherwise a
+    // fully independent kit (its own status, its own deploy). NULL for
+    // kits created one-at-a-time (qty_kits = 1), unchanged from before.
+    await conn.query(`ALTER TABLE assembled_kits ADD COLUMN IF NOT EXISTS kit_group_id INT DEFAULT NULL`);
+    await conn.query(`ALTER TABLE assembled_kits ADD COLUMN IF NOT EXISTS instance_no INT NOT NULL DEFAULT 1`);
+
     await conn.query(`
       CREATE TABLE IF NOT EXISTS kit_allocations (
         id            INT AUTO_INCREMENT PRIMARY KEY,

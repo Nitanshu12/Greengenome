@@ -240,11 +240,122 @@ async function autoCompletePartialKits() {
   return updated;
 }
 
+// Allocates exactly ONE kit's worth of the BOM against the given (shared,
+// mutating) FEFO pool cache — expands sub-kit lines into their raw
+// components, same as before, just scoped to a single unit. POST /create
+// calls this once per requested kit instance, so N kits from one request
+// still draw from a single depleting pool in one consistent priority order
+// (the first instance claims stock first, the last claims whatever's left),
+// the same order a single combined pass always produced.
+async function allocateOneKitFromBom(conn, bomRows, pools) {
+  const allocated = [];
+  const shortfalls = [];
+  const writes = []; // { item_code, batch_id, qty } — always a RAW item_code
+
+  for (const bom of bomRows) {
+    if (!bom.is_subkit) {
+      const p = await pools.get(bom.item_code);
+      const usage = consume(p, bom.required_qty);
+      const allocatedQty = usage.reduce((s, u) => s + u.qty, 0);
+      const remaining = bom.required_qty - allocatedQty;
+
+      for (const u of usage) writes.push({ item_code: bom.item_code, batch_id: u.batch_id, qty: u.qty });
+
+      if (remaining > 0) {
+        shortfalls.push({
+          item_code: bom.item_code,
+          item_name: bom.item_name,
+          required_qty: bom.required_qty,
+          available_qty: allocatedQty,
+          shortfall_qty: remaining,
+        });
+      } else {
+        allocated.push({
+          item_code: bom.item_code,
+          item_name: bom.item_name,
+          required_qty: bom.required_qty,
+          allocated_qty: allocatedQty,
+        });
+      }
+      continue;
+    }
+
+    // Sub-kit — expand into its recipe, build only as many COMPLETE
+    // sub-kits as the scarcest component allows (no partial/unusable kits)
+    const [components] = await conn.query(
+      `SELECT sc.component_item_code, sc.qty_per_unit, i.name AS component_name
+       FROM sub_kit_components sc
+       JOIN items i ON i.item_code = sc.component_item_code
+       WHERE sc.sub_kit_item_code = ?`,
+      [bom.item_code]
+    );
+    const neededKits = bom.required_qty;
+
+    // Phase 1: peek how many complete kits each component alone could supply
+    let maxBuildable = neededKits;
+    const componentInfo = [];
+    for (const comp of components) {
+      const p = await pools.get(comp.component_item_code);
+      const buildableFromThis = Math.floor(peekAvailable(p) / comp.qty_per_unit);
+      componentInfo.push({ ...comp, buildableFromThis });
+      maxBuildable = Math.min(maxBuildable, buildableFromThis);
+    }
+    maxBuildable = Math.max(0, maxBuildable);
+
+    // Phase 2: commit consumption for exactly maxBuildable kits' worth of each component
+    const componentDetail = [];
+    for (const comp of componentInfo) {
+      const needQty = comp.qty_per_unit * maxBuildable;
+      const p = await pools.get(comp.component_item_code);
+      const usage = needQty > 0 ? consume(p, needQty) : [];
+      for (const u of usage) writes.push({ item_code: comp.component_item_code, batch_id: u.batch_id, qty: u.qty });
+      componentDetail.push({
+        item_code: comp.component_item_code,
+        item_name: comp.component_name,
+        qty_per_unit: comp.qty_per_unit,
+        buildable_kits: comp.buildableFromThis,
+      });
+    }
+
+    const shortfallKits = neededKits - maxBuildable;
+    if (shortfallKits > 0) {
+      shortfalls.push({
+        item_code: bom.item_code,
+        item_name: bom.item_name,
+        required_qty: neededKits,
+        available_qty: maxBuildable,
+        shortfall_qty: shortfallKits,
+        is_subkit: true,
+        components: componentDetail,
+      });
+    } else {
+      allocated.push({
+        item_code: bom.item_code,
+        item_name: bom.item_name,
+        required_qty: neededKits,
+        allocated_qty: maxBuildable,
+        is_subkit: true,
+      });
+    }
+  }
+
+  return { allocated, shortfalls, writes };
+}
+
 // POST /api/kit-assembly/create
-// Assembles a kit: expands sub-kit BOM lines into their raw components,
+// Assembles kit(s): expands sub-kit BOM lines into their raw components,
 // allocates everything FEFO (earliest expiry first, 80%-rule applied),
 // records in assembled_kits + kit_allocations (always against raw item_codes —
 // a sub-kit never gets its own stock batch), increments qty_issued.
+//
+// qty_kits > 1 does NOT bundle multiple physical kits into one row. It
+// creates N separate, independently-deployable assembled_kits rows (each
+// qty_kits = 1), tagged with a shared kit_group_id purely so the UI can show
+// them together and offer combined shortfall ordering. Every downstream step
+// — topping up a partial kit, generating an Inventory Transaction, finalizing
+// into Kits Information, cancelling — already operates on a single kit_id,
+// so real separate rows here is what makes "deploy kit 1 now, kit 2 and 3
+// later" possible at all.
 router.post("/create", requireRole("admin", "superadmin"), async (req, res) => {
   const { kit_name, qty_kits = 1, notes = "" } = req.body;
 
@@ -256,21 +367,31 @@ router.post("/create", requireRole("admin", "superadmin"), async (req, res) => {
     return res.status(400).json({ error: "Quantity must be at least 1" });
   }
 
+  const baseName = kit_name.trim();
+  // A single kit keeps its exact typed name, unchanged from before. Multiple
+  // kits from one request are numbered instances of that name — each becomes
+  // its own real, independently-deployable kit (not a cosmetic label).
+  const instanceNames = numKits === 1
+    ? [baseName]
+    : Array.from({ length: numKits }, (_, i) => `${baseName} ${i + 1}`);
+
   const conn = await pool.getConnection();
   try {
     await conn.query("START TRANSACTION");
 
-    // 0. Duplicate name check
-    const [[existing]] = await conn.query(
-      "SELECT kit_id FROM assembled_kits WHERE kit_name = ? AND status != 'cancelled' LIMIT 1",
-      [kit_name.trim()]
-    );
-    if (existing) {
-      await conn.query("ROLLBACK");
-      return res.status(409).json({ error: `A kit named "${kit_name.trim()}" already exists (Kit #${existing.kit_id}). Use a different name.` });
+    // 0. Duplicate name check — every instance name, up front, all-or-nothing
+    for (const name of instanceNames) {
+      const [[existing]] = await conn.query(
+        "SELECT kit_id FROM assembled_kits WHERE kit_name = ? AND status != 'cancelled' LIMIT 1",
+        [name]
+      );
+      if (existing) {
+        await conn.query("ROLLBACK");
+        return res.status(409).json({ error: `A kit named "${name}" already exists (Kit #${existing.kit_id}). Use a different name.` });
+      }
     }
 
-    // 1. Fetch BOM, tagged with whether each line is a sub-kit
+    // 1. Fetch BOM, tagged with whether each line is a sub-kit — shared across every instance
     const [bomRows] = await conn.query(
       `SELECT bd.item_code, bd.item_name, bd.required_qty, COALESCE(i.is_subkit, 0) AS is_subkit
        FROM bom_disaster bd
@@ -283,134 +404,73 @@ router.post("/create", requireRole("admin", "superadmin"), async (req, res) => {
       return res.status(400).json({ error: "BOM is empty — add items to BOM Disaster first" });
     }
 
-    const pools = makePoolCache(conn);
-    const allocated = [];
-    const shortfalls = [];
-    const writes = []; // { item_code, batch_id, qty } — always a RAW item_code
-
-    for (const bom of bomRows) {
-      if (!bom.is_subkit) {
-        // ── Raw item — same FEFO allocation as before, just via the shared pool ──
-        const totalNeeded = bom.required_qty * numKits;
-        const p = await pools.get(bom.item_code);
-        const usage = consume(p, totalNeeded);
-        const allocatedQty = usage.reduce((s, u) => s + u.qty, 0);
-        const remaining = totalNeeded - allocatedQty;
-
-        for (const u of usage) writes.push({ item_code: bom.item_code, batch_id: u.batch_id, qty: u.qty });
-
-        if (remaining > 0) {
-          shortfalls.push({
-            item_code: bom.item_code,
-            item_name: bom.item_name,
-            required_qty: totalNeeded,
-            available_qty: allocatedQty,
-            shortfall_qty: remaining,
-          });
-        } else {
-          allocated.push({
-            item_code: bom.item_code,
-            item_name: bom.item_name,
-            required_qty: totalNeeded,
-            allocated_qty: allocatedQty,
-          });
-        }
-        continue;
-      }
-
-      // ── Sub-kit — expand into its recipe, build only as many COMPLETE
-      // sub-kits as the scarcest component allows (no partial/unusable kits) ──
-      const [components] = await conn.query(
-        `SELECT sc.component_item_code, sc.qty_per_unit, i.name AS component_name
-         FROM sub_kit_components sc
-         JOIN items i ON i.item_code = sc.component_item_code
-         WHERE sc.sub_kit_item_code = ?`,
-        [bom.item_code]
-      );
-      const neededKits = bom.required_qty * numKits;
-
-      // Phase 1: peek how many complete kits each component alone could supply
-      let maxBuildable = neededKits;
-      const componentInfo = [];
-      for (const comp of components) {
-        const p = await pools.get(comp.component_item_code);
-        const buildableFromThis = Math.floor(peekAvailable(p) / comp.qty_per_unit);
-        componentInfo.push({ ...comp, buildableFromThis });
-        maxBuildable = Math.min(maxBuildable, buildableFromThis);
-      }
-      maxBuildable = Math.max(0, maxBuildable);
-
-      // Phase 2: commit consumption for exactly maxBuildable kits' worth of each component
-      const componentDetail = [];
-      for (const comp of componentInfo) {
-        const needQty = comp.qty_per_unit * maxBuildable;
-        const p = await pools.get(comp.component_item_code);
-        const usage = needQty > 0 ? consume(p, needQty) : [];
-        for (const u of usage) writes.push({ item_code: comp.component_item_code, batch_id: u.batch_id, qty: u.qty });
-        componentDetail.push({
-          item_code: comp.component_item_code,
-          item_name: comp.component_name,
-          qty_per_unit: comp.qty_per_unit,
-          buildable_kits: comp.buildableFromThis,
-        });
-      }
-
-      const shortfallKits = neededKits - maxBuildable;
-      if (shortfallKits > 0) {
-        shortfalls.push({
-          item_code: bom.item_code,
-          item_name: bom.item_name,
-          required_qty: neededKits,
-          available_qty: maxBuildable,
-          shortfall_qty: shortfallKits,
-          is_subkit: true,
-          components: componentDetail,
-        });
-      } else {
-        allocated.push({
-          item_code: bom.item_code,
-          item_name: bom.item_name,
-          required_qty: neededKits,
-          allocated_qty: maxBuildable,
-          is_subkit: true,
-        });
-      }
-    }
-
-    // 2. Record the assembled kit
-    const kitStatus = shortfalls.length > 0 ? "partial" : "assembled";
     const assembledBy = req.session.user?.username || "unknown";
+    // One shared, depleting FEFO pool across every instance in this request.
+    const pools = makePoolCache(conn);
+    const results = [];
+    let groupId = null;
 
-    const [kitResult] = await conn.query(
-      `INSERT INTO assembled_kits (kit_name, qty_kits, assembled_by, notes, status)
-       VALUES (?, ?, ?, ?, ?)`,
-      [kit_name.trim(), numKits, assembledBy, notes || null, kitStatus]
-    );
-    const kitId = kitResult.insertId;
+    for (let i = 0; i < numKits; i++) {
+      const { allocated, shortfalls, writes } = await allocateOneKitFromBom(conn, bomRows, pools);
+      const kitStatus = shortfalls.length > 0 ? "partial" : "assembled";
 
-    // 3. Write allocations and update qty_issued — always against raw item_codes
-    for (const w of writes) {
-      await conn.query(
-        `INSERT INTO kit_allocations (kit_id, item_code, batch_id, qty_allocated)
-         VALUES (?, ?, ?, ?)`,
-        [kitId, w.item_code, w.batch_id, w.qty]
+      const [kitResult] = await conn.query(
+        `INSERT INTO assembled_kits (kit_name, qty_kits, assembled_by, notes, status, kit_group_id, instance_no)
+         VALUES (?, 1, ?, ?, ?, ?, ?)`,
+        [instanceNames[i], assembledBy, notes || null, kitStatus, groupId, i + 1]
       );
-      await conn.query(
-        `UPDATE stock_batches SET qty_issued = qty_issued + ? WHERE batch_id = ?`,
-        [w.qty, w.batch_id]
-      );
+      const kitId = kitResult.insertId;
+
+      // The first instance of a multi-kit request becomes the group anchor —
+      // its own id doubles as the shared kit_group_id for every sibling.
+      if (numKits > 1 && i === 0) {
+        groupId = kitId;
+        await conn.query("UPDATE assembled_kits SET kit_group_id = ? WHERE kit_id = ?", [groupId, kitId]);
+      }
+
+      for (const w of writes) {
+        await conn.query(
+          `INSERT INTO kit_allocations (kit_id, item_code, batch_id, qty_allocated)
+           VALUES (?, ?, ?, ?)`,
+          [kitId, w.item_code, w.batch_id, w.qty]
+        );
+        await conn.query(
+          `UPDATE stock_batches SET qty_issued = qty_issued + ? WHERE batch_id = ?`,
+          [w.qty, w.batch_id]
+        );
+      }
+
+      results.push({
+        kit_id: kitId,
+        kit_name: instanceNames[i],
+        status: kitStatus,
+        instance_no: i + 1,
+        allocated,
+        shortfalls,
+      });
     }
 
     await conn.query("COMMIT");
 
-    res.status(201).json({
-      kit_id: kitId,
-      kit_name: kit_name.trim(),
-      qty_kits: numKits,
-      status: kitStatus,
-      allocated,
-      shortfalls,
-    });
+    if (numKits === 1) {
+      // Unchanged response shape — no behavior change for single-kit creates.
+      const only = results[0];
+      res.status(201).json({
+        kit_id: only.kit_id,
+        kit_name: only.kit_name,
+        qty_kits: 1,
+        status: only.status,
+        allocated: only.allocated,
+        shortfalls: only.shortfalls,
+      });
+    } else {
+      res.status(201).json({
+        kit_group_id: groupId,
+        base_kit_name: baseName,
+        qty_kits: numKits,
+        kits: results,
+      });
+    }
   } catch (err) {
     await conn.query("ROLLBACK");
     console.error("Kit assembly error:", err.message);
@@ -429,6 +489,7 @@ router.get("/history", requireLogin, async (req, res) => {
     // duplicate the DB's uq_kit_status constraint would reject anyway).
     const [rows] = await conn.query(
       `SELECT ak.kit_id, ak.kit_name, ak.qty_kits, ak.assembled_by, ak.notes, ak.status, ak.created_at,
+              ak.kit_group_id, ak.instance_no,
               it.id AS transaction_id, it.status AS transaction_status
        FROM assembled_kits ak
        LEFT JOIN inventory_transactions it
