@@ -20,7 +20,7 @@ async function buildDraftRows(conn, kit) {
             i.brand, i.is_subkit, i.product_category
      FROM kit_box_template t
      LEFT JOIN items i ON i.item_code = t.item_code
-     ORDER BY t.row_order ASC`
+     ORDER BY t.cube_no ASC, CAST(t.box_no AS UNSIGNED) ASC, t.row_order ASC`
   );
 
   const [subKitComponents] = await conn.query(
@@ -261,7 +261,8 @@ router.get("/:id", requireLogin, async (req, res) => {
     const [[txn]] = await pool.query(`SELECT * FROM inventory_transactions WHERE id = ?`, [req.params.id]);
     if (!txn) return res.status(404).json({ error: "Transaction not found" });
     const [items] = await pool.query(
-      `SELECT * FROM inventory_transaction_items WHERE transaction_id = ? ORDER BY row_order ASC, id ASC`,
+      `SELECT * FROM inventory_transaction_items WHERE transaction_id = ?
+       ORDER BY cube_no ASC, CAST(box_no AS UNSIGNED) ASC, row_order ASC, id ASC`,
       [req.params.id]
     );
     items.forEach(it => { it.assembly_detail = parseJsonColumn(it.assembly_detail); });
@@ -603,7 +604,8 @@ router.post("/:id/finalize", ...adminOnly, async (req, res) => {
     if (txn.status !== "draft") return res.status(400).json({ error: `Transaction is already ${txn.status}` });
 
     const [items] = await pool.query(
-      `SELECT * FROM inventory_transaction_items WHERE transaction_id = ? ORDER BY row_order ASC, id ASC`,
+      `SELECT * FROM inventory_transaction_items WHERE transaction_id = ?
+       ORDER BY cube_no ASC, CAST(box_no AS UNSIGNED) ASC, row_order ASC, id ASC`,
       [req.params.id]
     );
     if (!items.length) return res.status(400).json({ error: "Transaction has no rows to generate" });

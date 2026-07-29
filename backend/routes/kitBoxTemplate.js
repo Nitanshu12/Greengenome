@@ -17,7 +17,7 @@ router.get("/", requireLogin, async (req, res) => {
               (t.item_code IS NULL) AS unmatched
        FROM kit_box_template t
        LEFT JOIN items i ON i.item_code = t.item_code
-       ORDER BY t.row_order ASC`
+       ORDER BY t.cube_no ASC, CAST(t.box_no AS UNSIGNED) ASC, t.row_order ASC`
     );
     res.json({ data: rows.map(r => ({ ...r, unmatched: !!r.unmatched })) });
   } catch (err) {
