@@ -1,13 +1,34 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { api } from "../api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/Toast";
 
 const EMPTY_FORM = { item_code: "", item_name: "", required_qty: "" };
 
-function BomFormModal({ initial, onSave, onClose, saving }) {
+function BomFormModal({ initial, items, onSave, onClose, saving }) {
   const [form, setForm] = useState(initial || EMPTY_FORM);
+  const [itemSearch, setItemSearch] = useState("");
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // When item_code changes (via dropdown), auto-fill item_name
+  const handleItemSelect = (e) => {
+    const code = e.target.value;
+    const found = items.find(i => i.item_code === code);
+    setForm(f => ({
+      ...f,
+      item_code: code,
+      item_name: found ? found.name : "",
+    }));
+  };
+
+  const filteredItems = useMemo(() => {
+    const q = itemSearch.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(i =>
+      i.item_code.toLowerCase().includes(q) ||
+      (i.name || "").toLowerCase().includes(q)
+    );
+  }, [items, itemSearch]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -19,18 +40,44 @@ function BomFormModal({ initial, onSave, onClose, saving }) {
         <div className="modal-title">{initial ? "Edit BOM Entry" : "Add BOM Entry"}</div>
 
         <div className="form-group">
-          <label className="form-label">Item Code *</label>
-          <input className="form-input" value={form.item_code}
-            onChange={e => set("item_code", e.target.value)}
-            placeholder="e.g. GGIPL - 1"
-            disabled={!!initial} />
+          <label className="form-label">Select Item *</label>
+          {initial ? (
+            /* In edit mode: show the current item code as read-only */
+            <input className="form-input" value={form.item_code} disabled />
+          ) : (
+            <>
+              <input
+                className="form-input"
+                style={{ marginBottom: 6 }}
+                placeholder="Search by code or name…"
+                value={itemSearch}
+                onChange={e => setItemSearch(e.target.value)}
+              />
+              <select
+                className="form-select"
+                value={form.item_code}
+                onChange={handleItemSelect}
+              >
+                <option value="">— Choose an item —</option>
+                {filteredItems.map(i => (
+                  <option key={i.item_code} value={i.item_code}>
+                    {i.item_code} — {i.name}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
 
         <div className="form-group">
-          <label className="form-label">Item Name *</label>
-          <input className="form-input" value={form.item_name}
-            onChange={e => set("item_name", e.target.value)}
-            placeholder="Item description" />
+          <label className="form-label">Item Name</label>
+          <input
+            className="form-input"
+            value={form.item_name}
+            disabled
+            placeholder="Auto-filled from selected item"
+            style={{ color: form.item_name ? undefined : "var(--muted)" }}
+          />
         </div>
 
         <div className="form-group">
@@ -66,6 +113,12 @@ export default function BomDisaster() {
   const [editTarget, setEditTarget] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // Items master list — used to populate the item picker in the modal
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    api.getItems().then(d => setItems(d.data || [])).catch(() => {});
+  }, []);
+
   const load = useCallback((silent = false) => {
     if (!silent) setLoading(true);
     const params = search ? `q=${encodeURIComponent(search)}` : "";
@@ -78,8 +131,11 @@ export default function BomDisaster() {
   useEffect(() => { load(); }, [load]);
 
   const handleSave = async (form) => {
-    if (!form.item_code.trim() || !form.item_name.trim()) {
-      toast("Item code and item name are required", "error"); return;
+    if (!form.item_code.trim()) {
+      toast("Please select an item", "error"); return;
+    }
+    if (!form.item_name.trim()) {
+      toast("Item name could not be resolved", "error"); return;
     }
     setSaving(true);
     try {
@@ -234,6 +290,7 @@ export default function BomDisaster() {
             item_name:    editTarget.item_name,
             required_qty: editTarget.required_qty ?? ""
           } : null}
+          items={items}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditTarget(null); }}
           saving={saving}

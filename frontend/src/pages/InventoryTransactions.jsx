@@ -420,9 +420,9 @@ export default function InventoryTransactions() {
       <div className="page-header">
         <div>
           <div className="page-title">Inventory Transactions</div>
-          <div className="page-sub">
+          {/* <div className="page-sub">
             Packing-list drafts generated from fully-assembled kits — edit rows, then push the final report to Kits Information.
-          </div>
+          </div> */}
         </div>
       </div>
 
