@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api } from "../api";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/Toast";
@@ -7,7 +7,6 @@ const EMPTY_FORM = { item_code: "", item_name: "", required_qty: "" };
 
 function BomFormModal({ initial, items, onSave, onClose, saving }) {
   const [form, setForm] = useState(initial || EMPTY_FORM);
-  const [itemSearch, setItemSearch] = useState("");
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   // When item_code changes (via dropdown), auto-fill item_name
@@ -20,15 +19,6 @@ function BomFormModal({ initial, items, onSave, onClose, saving }) {
       item_name: found ? found.name : "",
     }));
   };
-
-  const filteredItems = useMemo(() => {
-    const q = itemSearch.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(i =>
-      i.item_code.toLowerCase().includes(q) ||
-      (i.name || "").toLowerCase().includes(q)
-    );
-  }, [items, itemSearch]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -45,27 +35,18 @@ function BomFormModal({ initial, items, onSave, onClose, saving }) {
             /* In edit mode: show the current item code as read-only */
             <input className="form-input" value={form.item_code} disabled />
           ) : (
-            <>
-              <input
-                className="form-input"
-                style={{ marginBottom: 6 }}
-                placeholder="Search by code or name…"
-                value={itemSearch}
-                onChange={e => setItemSearch(e.target.value)}
-              />
-              <select
-                className="form-select"
-                value={form.item_code}
-                onChange={handleItemSelect}
-              >
-                <option value="">— Choose an item —</option>
-                {filteredItems.map(i => (
-                  <option key={i.item_code} value={i.item_code}>
-                    {i.item_code} — {i.name}
-                  </option>
-                ))}
-              </select>
-            </>
+            <select
+              className="form-select"
+              value={form.item_code}
+              onChange={handleItemSelect}
+            >
+              <option value="">Choose an item</option>
+              {items.map(i => (
+                <option key={i.item_code} value={i.item_code}>
+                  {i.item_code} — {i.name}
+                </option>
+              ))}
+            </select>
           )}
         </div>
 
