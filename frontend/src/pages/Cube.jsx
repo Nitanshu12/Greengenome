@@ -72,8 +72,6 @@ export default function Cube() {
           <Link to="/services">Services</Link>
           <Link to="/cube">Cube</Link>
           <Link to="/contact">Contact Us</Link>
-        </div>
-        <div className={`landing-menu${menuOpen ? " active" : ""}`}>
           <Link to="/login">Login</Link>
         </div>
         <div
