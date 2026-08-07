@@ -562,7 +562,7 @@ export default function ItemsMaster() {
         </div>
       ) : (
         <>
-          <div className="table-wrap" style={{ overflowX: "hidden" }}>
+          <div className="table-wrap" style={{ overflowX: "auto" }}>
             <table className="items-master-table">
               <thead>
                 <tr>

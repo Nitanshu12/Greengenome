@@ -221,7 +221,7 @@ function TransactionCard({ txn, isOpen, detail, onToggle, onReload, isAdmin, toa
                 )}
               </div>
 
-              <div className="table-wrap" style={{ margin: 0, overflowX: "hidden" }}>
+              <div className="table-wrap" style={{ margin: 0, overflowX: "auto" }}>
                 <table className="txn-items-table">
                   <colgroup>
                     <col style={{ width: "4%" }} />

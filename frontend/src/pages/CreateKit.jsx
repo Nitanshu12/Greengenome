@@ -1005,7 +1005,7 @@ export default function CreateKit() {
                         {det.allocated.length} items
                       </span>
                     </div>
-                    <div className="table-wrap" style={{ margin: 0, overflowX: "hidden" }}>
+                    <div className="table-wrap" style={{ margin: 0, overflowX: "auto" }}>
                       <table className="kit-alloc-table">
                         <colgroup>
                           <col style={{ width: "12%" }} />
@@ -1076,7 +1076,7 @@ export default function CreateKit() {
                         {det.shortfalls.length} items
                       </span>
                     </div>
-                    <div className="table-wrap" style={{ margin: 0, overflowX: "hidden" }}>
+                    <div className="table-wrap" style={{ margin: 0, overflowX: "auto" }}>
                       <table className="kit-alloc-table">
                         <colgroup>
                           <col style={{ width: "14%" }} />
@@ -1897,7 +1897,7 @@ export default function CreateKit() {
 
           {allocatedOpen && (
             <div style={{ border: "1px solid #86efac", borderTop: "none", borderRadius: "0 0 10px 10px", overflow: "hidden" }}>
-              <div className="table-wrap" style={{ margin: 0, overflowX: "hidden", maxHeight: 420, overflowY: "auto" }}>
+              <div className="table-wrap" style={{ margin: 0, overflowX: "auto", maxHeight: 420, overflowY: "auto" }}>
                 <table className="kit-alloc-table">
                   <colgroup>
                     <col style={{ width: "12%" }} />
@@ -2008,7 +2008,7 @@ export default function CreateKit() {
 
           {shortfallsOpen && (
             <div style={{ border: "1px solid #fca5a5", borderTop: "none", borderRadius: "0 0 10px 10px", overflow: "hidden" }}>
-              <div className="table-wrap" style={{ margin: 0, overflowX: "hidden", maxHeight: 420, overflowY: "auto" }}>
+              <div className="table-wrap" style={{ margin: 0, overflowX: "auto", maxHeight: 420, overflowY: "auto" }}>
                 <table className="kit-alloc-table">
                   <colgroup>
                     <col style={{ width: "11%" }} />

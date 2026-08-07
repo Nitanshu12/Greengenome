@@ -314,7 +314,7 @@ export default function ItemVendors() {
 
                 {/* Vendor sub-table */}
                 {open && (
-                  <div style={{ borderTop: "1px solid var(--border)", overflowX: "hidden" }}>
+                  <div style={{ borderTop: "1px solid var(--border)", overflowX: "auto" }}>
                     {item.vendors.length === 0 ? (
                       <div style={{ padding: "16px 24px", color: "var(--muted)", fontSize: 14 }}>
                         No vendors linked yet.
