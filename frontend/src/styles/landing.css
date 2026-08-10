@@ -62,7 +62,7 @@
 }
 
 .landing-page .landing-logo img {
-  height: 56px;
+  height: 76px;
   width: auto;
   display: block;
 }
@@ -70,23 +70,55 @@
 .landing-page .landing-menu {
   display: flex;
   align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.landing-page .landing-nav-links {
+  display: flex;
+  align-items: center;
   gap: 4px;
   flex-wrap: wrap;
 }
 
-.landing-page .landing-menu a {
+.landing-page .landing-nav-links a {
   color: rgb(20, 119, 51);
   text-decoration: none;
   font-weight: 700;
-  padding: 7px 11px;
-  border-radius: 4px;
-  transition: background 0.3s;
-  font-size: 0.95rem;
+  padding: 7px 14px;
+  border-radius: 6px;
+  transition: background 0.3s, color 0.3s;
+  font-size: 1rem;
   white-space: nowrap;
 }
 
-.landing-page .landing-menu a:hover {
+.landing-page .landing-nav-links a:hover {
   background: rgba(7, 123, 77, 0.1);
+}
+
+.landing-page .landing-menu-login {
+  display: flex;
+  align-items: center;
+}
+
+.landing-page .landing-login-btn {
+  background: #077B4D;
+  color: #ffffff !important;
+  padding: 8px 22px !important;
+  border-radius: 20px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 3px 10px rgba(7, 123, 77, 0.25);
+  white-space: nowrap;
+  display: inline-block;
+  text-align: center;
+}
+
+.landing-page .landing-login-btn:hover {
+  background: #055c39 !important;
+  box-shadow: 0 4px 14px rgba(7, 123, 77, 0.35);
+  transform: translateY(-1px);
 }
 
 /* Hamburger button — hidden on desktop */
@@ -680,31 +712,58 @@
 /* ── Mobile landscape / large phone ── */
 @media (max-width: 768px) {
   /* Navbar: hide inline menu, show hamburger */
+  .landing-page .landing-navbar {
+    justify-content: space-between;
+    padding: 12px 4%;
+  }
+
   .landing-page .landing-menu {
     display: none;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     background: #e8f5e9;
     position: absolute;
-    top: 72px;
+    top: calc(100% + 4px);
     right: 16px;
     left: 16px;
     padding: 16px 20px;
     border-radius: 12px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
     z-index: 200;
-    gap: 4px;
+    gap: 12px;
   }
 
   .landing-page .landing-menu.active {
     display: flex;
   }
 
-  .landing-page .landing-menu a {
+  .landing-page .landing-nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+  }
+
+  .landing-page .landing-nav-links a {
     width: 100%;
     padding: 10px 14px;
     font-size: 1rem;
     border-radius: 8px;
+    box-sizing: border-box;
+  }
+
+  .landing-page .landing-menu-login {
+    width: 100%;
+    border-top: 1px solid rgba(7, 123, 77, 0.15);
+    padding-top: 10px;
+  }
+
+  .landing-page .landing-login-btn {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11px 16px !important;
+    border-radius: 8px;
+    font-size: 1rem;
   }
 
   .landing-page .landing-menu-btn {
@@ -778,7 +837,7 @@
   }
 
   .landing-page .landing-menu {
-    top: 66px;
+    top: calc(100% + 4px);
     right: 10px;
     left: 10px;
   }

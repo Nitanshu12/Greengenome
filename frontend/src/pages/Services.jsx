@@ -1,10 +1,10 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import "../styles/landing.css";
 import "../styles/services.css";
-import logo from "../../static/images/img5.png";
+import Navbar from "../components/Navbar";
 import service1 from "../../static/images/Service1.png";
 import service2 from "../../static/images/Service2.png";
 import service3 from "../../static/images/Service3.png";
@@ -63,7 +63,6 @@ const SERVICES = [
 ];
 
 export default function Services() {
-  const [menuOpen, setMenuOpen] = useState(false);
   const listRef = useRef(null);
 
   // GSAP ScrollTrigger drives the fade/slide-in on each row as it enters
@@ -105,28 +104,7 @@ export default function Services() {
     <div className="landing-page">
 
       {/* ===== NAVBAR ===== */}
-      <div className="landing-navbar">
-        <div className="landing-logo">
-          <img src={logo} alt="Green Genome Logo" />
-        </div>
-        <div className={`landing-menu${menuOpen ? " active" : ""}`}>
-          <a href="/#home">Home</a>
-          <Link to="/about">About Us</Link>
-          <Link to="/services">Services</Link>
-          <Link to="/cube">Cube</Link>
-          <Link to="/contact">Contact Us</Link>
-          <Link to="/login">Login</Link>
-        </div>
-        <div
-          className="landing-menu-btn"
-          onClick={() => setMenuOpen((o) => !o)}
-          aria-label="Toggle menu"
-        >
-          <span />
-          <span />
-          <span />
-        </div>
-      </div>
+      <Navbar />
 
       {/* ===== HERO ===== */}
       <section className="services-hero">

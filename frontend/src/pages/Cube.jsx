@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import "../styles/landing.css";
 import "../styles/cube.css";
-import logo from "../../static/images/img5.png";
+import Navbar from "../components/Navbar";
 
 // BHISHM Cube slide deck, in presentation order
 import slide1 from "../../static/images/image.png";
@@ -32,7 +32,6 @@ const SLIDES = [
 const SLIDE_INTERVAL_MS = 3000;
 
 export default function Cube() {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
   const timerRef = useRef(null);
 
@@ -62,28 +61,7 @@ export default function Cube() {
     <div className="landing-page">
 
       {/* ===== NAVBAR ===== */}
-      <div className="landing-navbar">
-        <div className="landing-logo">
-          <img src={logo} alt="Green Genome Logo" />
-        </div>
-        <div className={`landing-menu${menuOpen ? " active" : ""}`}>
-          <a href="/#home">Home</a>
-          <Link to="/about">About Us</Link>
-          <Link to="/services">Services</Link>
-          <Link to="/cube">Cube</Link>
-          <Link to="/contact">Contact Us</Link>
-          <Link to="/login">Login</Link>
-        </div>
-        <div
-          className="landing-menu-btn"
-          onClick={() => setMenuOpen((o) => !o)}
-          aria-label="Toggle menu"
-        >
-          <span />
-          <span />
-          <span />
-        </div>
-      </div>
+      <Navbar />
 
       {/* ===== HERO ===== */}
       <section className="cube-hero">

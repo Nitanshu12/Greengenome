@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import "../styles/landing.css";
-import logo from "../../static/images/img5.png";
+import Navbar from "../components/Navbar";
 
 export default function Contact() {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", subject: "", message: "" });
   const [formMsg, setFormMsg] = useState("");
 
@@ -36,28 +35,7 @@ export default function Contact() {
     <div className="landing-page">
 
       {/* ===== NAVBAR ===== */}
-      <div className="landing-navbar">
-        <div className="landing-logo">
-          <img src={logo} alt="Green Genome Logo" />
-        </div>
-        <div className={`landing-menu${menuOpen ? " active" : ""}`}>
-          <a href="/#home">Home</a>
-          <Link to="/about">About Us</Link>
-          <Link to="/services">Services</Link>
-          <Link to="/cube">Cube</Link>
-          <Link to="/contact">Contact Us</Link>
-          <Link to="/login">Login</Link>
-        </div>
-        <div
-          className="landing-menu-btn"
-          onClick={() => setMenuOpen((o) => !o)}
-          aria-label="Toggle menu"
-        >
-          <span />
-          <span />
-          <span />
-        </div>
-      </div>
+      <Navbar />
 
       {/* ===== CONTACT ===== */}
       <section className="landing-section contact-section">
