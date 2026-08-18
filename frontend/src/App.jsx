@@ -23,11 +23,12 @@ import CubeBoxTemplate from "./pages/CubeBoxTemplate";
 import Outward from "./pages/Outward";
 import InventoryTransactions from "./pages/InventoryTransactions";
 
-function RequireAuth({ children, adminOnly = false, blockRestrictedUser = false }) {
+function RequireAuth({ children, adminOnly = false, superadminOnly = false, blockRestrictedUser = false }) {
   const { user } = useAuth();
   if (user === undefined) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}><div className="spinner" /></div>;
   if (!user) return <Navigate to="/login" replace />;
   if (adminOnly && !["admin", "superadmin"].includes(user.role)) return <Navigate to="/dashboard" replace />;
+  if (superadminOnly && user.role !== "superadmin") return <Navigate to="/dashboard" replace />;
   // Plain "user" role is scoped to Dashboard + Kits Information only — every
   // other route redirects it back, matching the API-level lockout on the
   // same pages (see backend route files) rather than relying on the sidebar
@@ -65,7 +66,7 @@ export default function App() {
         <Route path="outward"           element={<RequireAuth blockRestrictedUser><Outward /></RequireAuth>} />
         <Route path="inventory-transactions" element={<RequireAuth blockRestrictedUser><InventoryTransactions /></RequireAuth>} />
         <Route path="admin/upload" element={<RequireAuth adminOnly><AdminUpload /></RequireAuth>} />
-        <Route path="admin/users" element={<RequireAuth adminOnly><AdminUsers /></RequireAuth>} />
+        <Route path="admin/users" element={<RequireAuth superadminOnly><AdminUsers /></RequireAuth>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" />} />

@@ -138,8 +138,10 @@ router.delete("/kits/:kitName", requireLogin, requireRole("superadmin"), async (
 // USER MANAGEMENT
 // ════════════════════════════════════════════════════════════
 
-// GET /api/admin/users
-router.get("/users", requireLogin, requireRole("admin", "superadmin"), async (req, res) => {
+// GET /api/admin/users — the whole Users screen is superadmin-only now, not
+// just create/delete, so this (and toggle/password below) moved off the
+// shared admin+superadmin gate too.
+router.get("/users", requireLogin, requireRole("superadmin"), async (req, res) => {
   try {
     const [users] = await pool.query(
       "SELECT id AS _id, username, role, disabled, created_at AS createdAt FROM users ORDER BY created_at DESC"
@@ -187,7 +189,7 @@ router.delete("/users/:id", requireLogin, requireRole("superadmin"), async (req,
 });
 
 // PATCH /api/admin/users/:id/toggle
-router.patch("/users/:id/toggle", requireLogin, requireRole("admin", "superadmin"), async (req, res) => {
+router.patch("/users/:id/toggle", requireLogin, requireRole("superadmin"), async (req, res) => {
   try {
     const [[user]] = await pool.query("SELECT disabled FROM users WHERE id = ?", [req.params.id]);
     if (!user) return res.status(404).json({ error: "User not found" });
@@ -201,7 +203,7 @@ router.patch("/users/:id/toggle", requireLogin, requireRole("admin", "superadmin
 });
 
 // PATCH /api/admin/users/:id/password
-router.patch("/users/:id/password", requireLogin, requireRole("admin", "superadmin"), async (req, res) => {
+router.patch("/users/:id/password", requireLogin, requireRole("superadmin"), async (req, res) => {
   try {
     const { password } = req.body;
     if (!password) return res.status(400).json({ error: "Password required" });

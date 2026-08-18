@@ -19,9 +19,10 @@ const NAV = [
   { to: "/inventory-transactions", icon: "🧾", label: "Inventory Transactions" },
 ];
 
+// Users is superadmin-only — Upload Excel stays available to admin too.
 const ADMIN_NAV = [
   { to: "/admin/upload", icon: "↑", label: "Upload Excel" },
-  { to: "/admin/users",  icon: "👥", label: "Users" },
+  { to: "/admin/users",  icon: "👥", label: "Users", superadminOnly: true },
 ];
 
 const isMobile = () =>
@@ -33,12 +34,13 @@ const isMobile = () =>
 const RESTRICTED_USER_PATHS = ["/dashboard", "/packages"];
 
 export default function Layout() {
-  const { user, logout, isAdmin, isRestrictedUser } = useAuth();
+  const { user, logout, isAdmin, isSuperadmin, isRestrictedUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const visibleNav = isRestrictedUser
     ? NAV.filter(n => RESTRICTED_USER_PATHS.includes(n.to))
     : NAV;
+  const visibleAdminNav = ADMIN_NAV.filter(n => !n.superadminOnly || isSuperadmin);
 
   // Desktop: collapsed (icon-only) vs expanded
   const [collapsed, setCollapsed] = useState(false);
@@ -106,7 +108,7 @@ export default function Layout() {
           {isAdmin && (
             <>
               <div className="sidebar-section-label">Admin</div>
-              {ADMIN_NAV.map((n) => (
+              {visibleAdminNav.map((n) => (
                 <NavLink
                   key={n.to}
                   to={n.to}
