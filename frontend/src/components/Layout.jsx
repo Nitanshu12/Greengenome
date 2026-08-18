@@ -27,11 +27,18 @@ const ADMIN_NAV = [
 const isMobile = () =>
   typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches;
 
+// Plain "user" role is scoped to Dashboard + Kits Information only — see the
+// matching route guard in App.jsx and the API-level lockout on every other
+// route's backend file.
+const RESTRICTED_USER_PATHS = ["/dashboard", "/packages"];
+
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin, isRestrictedUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isAdmin = ["admin", "superadmin"].includes(user?.role);
+  const visibleNav = isRestrictedUser
+    ? NAV.filter(n => RESTRICTED_USER_PATHS.includes(n.to))
+    : NAV;
 
   // Desktop: collapsed (icon-only) vs expanded
   const [collapsed, setCollapsed] = useState(false);
@@ -82,7 +89,7 @@ export default function Layout() {
 
         <nav className="sidebar-nav">
           <div className="sidebar-section-label">Main</div>
-          {NAV.map((n) => (
+          {visibleNav.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}

@@ -3,9 +3,10 @@ const pool   = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
+const superadminOnly = [requireLogin, requireRole("superadmin")];
 
 // ── GET /api/item-vendors ─────────────────────────────────────────
-router.get("/", requireLogin, async (req, res) => {
+router.get("/", ...adminOnly, async (req, res) => {
   try {
     const { q = "" } = req.query;
     const params = [];
@@ -74,7 +75,7 @@ router.get("/", requireLogin, async (req, res) => {
 });
 
 // ── GET /api/item-vendors/vendors-list ───────────────────────────
-router.get("/vendors-list", requireLogin, async (req, res) => {
+router.get("/vendors-list", ...adminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query(
       "SELECT vendor_code, business_name FROM vendors ORDER BY vendor_code ASC"
@@ -86,7 +87,7 @@ router.get("/vendors-list", requireLogin, async (req, res) => {
 });
 
 // ── GET /api/item-vendors/items-list ─────────────────────────────
-router.get("/items-list", requireLogin, async (req, res) => {
+router.get("/items-list", ...adminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query(
       "SELECT item_code, name, unit_cost FROM items ORDER BY item_code ASC"
@@ -168,7 +169,7 @@ router.put("/:item_code/:vendor_code", ...adminOnly, async (req, res) => {
 });
 
 // ── DELETE /api/item-vendors/:item_code/:vendor_code ──────────────
-router.delete("/:item_code/:vendor_code", ...adminOnly, async (req, res) => {
+router.delete("/:item_code/:vendor_code", ...superadminOnly, async (req, res) => {
   try {
     const [result] = await pool.query(
       "DELETE FROM item_vendors WHERE item_code=? AND vendor_code=?",

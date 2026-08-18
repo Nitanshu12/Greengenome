@@ -26,7 +26,7 @@ const ELIGIBLE_BATCHES_SQL = `
 `;
 
 // GET /api/outward — challan list with per-challan item count
-router.get("/", requireLogin, async (req, res) => {
+router.get("/", ...adminOnly, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const [rows] = await conn.query(`
@@ -51,7 +51,7 @@ router.get("/", requireLogin, async (req, res) => {
 // GET /api/outward/stock-preview?item_code=XXX
 // Returns FEFO-eligible batches and total available qty for one item.
 // Must be defined before /:id so Express doesn't treat "stock-preview" as an id.
-router.get("/stock-preview", requireLogin, async (req, res) => {
+router.get("/stock-preview", ...adminOnly, async (req, res) => {
   const { item_code } = req.query;
   if (!item_code) return res.status(400).json({ error: "item_code is required" });
   const conn = await pool.getConnection();
@@ -70,7 +70,7 @@ router.get("/stock-preview", requireLogin, async (req, res) => {
 });
 
 // GET /api/outward/:id — full challan with line items + batch detail
-router.get("/:id", requireLogin, async (req, res) => {
+router.get("/:id", ...adminOnly, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const [[challan]] = await conn.query(

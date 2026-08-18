@@ -3,9 +3,10 @@ const pool = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
+const superadminOnly = [requireLogin, requireRole("superadmin")];
 
 // ── GET /api/items  (search + filter) ────────────────────────
-router.get("/", requireLogin, async (req, res) => {
+router.get("/", ...adminOnly, async (req, res) => {
   try {
     const { q = "", category = "" } = req.query;
     const params = [];
@@ -32,7 +33,7 @@ router.get("/", requireLogin, async (req, res) => {
 });
 
 // ── GET /api/items/categories ─────────────────────────────────
-router.get("/categories", requireLogin, async (req, res) => {
+router.get("/categories", ...adminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query(
       "SELECT DISTINCT category FROM items WHERE category IS NOT NULL ORDER BY category"
@@ -56,7 +57,7 @@ router.get("/categories", requireLogin, async (req, res) => {
 // });
 
 // ── GET /api/items/next-code ──────────────────────────────────
-router.get("/next-code", requireLogin, async (req, res) => {
+router.get("/next-code", ...adminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT item_code FROM items
@@ -76,7 +77,7 @@ router.get("/next-code", requireLogin, async (req, res) => {
 });
 
 // ── GET /api/items/:item_code ─────────────────────────────────
-router.get("/:item_code", requireLogin, async (req, res) => {
+router.get("/:item_code", ...adminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM items WHERE item_code = ?", [req.params.item_code]);
     if (!rows.length) return res.status(404).json({ error: "Item not found" });
@@ -162,7 +163,7 @@ router.put("/:item_code", ...adminOnly, async (req, res) => {
 });
 
 // ── DELETE /api/items/:item_code ──────────────────────────────
-router.delete("/:item_code", ...adminOnly, async (req, res) => {
+router.delete("/:item_code", ...superadminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT name FROM items WHERE item_code = ?", [req.params.item_code]);
     if (!rows.length) return res.status(404).json({ error: "Item not found" });

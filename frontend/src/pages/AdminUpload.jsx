@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useToast } from "../components/Toast";
+import { useAuth } from "../hooks/useAuth";
 
 export default function AdminUpload() {
   const { toast } = useToast();
+  const { canDelete } = useAuth();
   const fileRef = useRef();
   const [kitName, setKitName] = useState("");
   const [file, setFile] = useState(null);
@@ -155,13 +157,15 @@ export default function AdminUpload() {
                       {new Date(kit.createdAt).toLocaleDateString()}
                     </div>
                   </div>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    onClick={() => handleDelete(kit.kitName)}
-                    disabled={deleting === kit.kitName}
-                  >
-                    {deleting === kit.kitName ? "…" : "Delete"}
-                  </button>
+                  {canDelete && (
+                    <button
+                      className="btn btn-danger btn-sm"
+                      onClick={() => handleDelete(kit.kitName)}
+                      disabled={deleting === kit.kitName}
+                    >
+                      {deleting === kit.kitName ? "…" : "Delete"}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

@@ -114,7 +114,7 @@ router.get("/kits", requireLogin, requireRole("admin", "superadmin"), async (req
 // DELETE KIT
 // DELETE /api/admin/kits/:kitName
 // ════════════════════════════════════════════════════════════
-router.delete("/kits/:kitName", requireLogin, requireRole("admin", "superadmin"), async (req, res) => {
+router.delete("/kits/:kitName", requireLogin, requireRole("superadmin"), async (req, res) => {
   try {
     const kitName = decodeURIComponent(req.params.kitName);
 
@@ -150,8 +150,11 @@ router.get("/users", requireLogin, requireRole("admin", "superadmin"), async (re
   }
 });
 
-// POST /api/admin/users
-router.post("/users", requireLogin, requireRole("admin", "superadmin"), async (req, res) => {
+// POST /api/admin/users — creating an account means granting one of the
+// three roles, so only superadmin can do it (keeps admin from being able to
+// hand itself/anyone else a superadmin account and route around the delete
+// restriction below).
+router.post("/users", requireLogin, requireRole("superadmin"), async (req, res) => {
   try {
     const { username, password, role } = req.body;
     if (!username || !password) return res.status(400).json({ error: "Username & password required" });
@@ -171,7 +174,7 @@ router.post("/users", requireLogin, requireRole("admin", "superadmin"), async (r
 });
 
 // DELETE /api/admin/users/:id
-router.delete("/users/:id", requireLogin, requireRole("admin", "superadmin"), async (req, res) => {
+router.delete("/users/:id", requireLogin, requireRole("superadmin"), async (req, res) => {
   try {
     if (req.params.id === req.session.user.id.toString())
       return res.status(400).json({ error: "Cannot delete yourself" });

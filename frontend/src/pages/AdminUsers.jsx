@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useToast } from "../components/Toast";
+import { useAuth } from "../hooks/useAuth";
 
 function Modal({ title, onClose, children }) {
   return (
@@ -15,6 +16,7 @@ function Modal({ title, onClose, children }) {
 
 export default function AdminUsers() {
   const { toast } = useToast();
+  const { isSuperadmin, canDelete } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -99,9 +101,11 @@ export default function AdminUsers() {
           <div className="page-title">Users</div>
           <div className="page-sub">{users.length} total users</div>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-          + Create User
-        </button>
+        {isSuperadmin && (
+          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+            + Create User
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -141,12 +145,14 @@ export default function AdminUsers() {
                       >
                         Reset PW
                       </button>
-                      <button
-                        className="btn btn-danger btn-sm"
-                        onClick={() => handleDelete(u._id, u.username)}
-                      >
-                        Delete
-                      </button>
+                      {canDelete && (
+                        <button
+                          className="btn btn-danger btn-sm"
+                          onClick={() => handleDelete(u._id, u.username)}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

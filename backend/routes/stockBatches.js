@@ -4,8 +4,9 @@ const { requireLogin, requireRole } = require("../middleware/auth");
 const { autoCompletePartialKits } = require("./kitAssembly");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
+const superadminOnly = [requireLogin, requireRole("superadmin")];
 
-router.get("/summary", requireLogin, async (req, res) => {
+router.get("/summary", ...adminOnly, async (req, res) => {
   try {
     const conn = await pool.getConnection();
     try {
@@ -23,7 +24,7 @@ router.get("/summary", requireLogin, async (req, res) => {
   }
 });
 
-router.get("/", requireLogin, async (req, res) => {
+router.get("/", ...adminOnly, async (req, res) => {
   try {
     const { item_code, status, q } = req.query;
     const params = [];
@@ -354,7 +355,7 @@ router.post("/:id/issue", ...adminOnly, async (req, res) => {
   }
 });
 
-router.delete("/:id", ...adminOnly, async (req, res) => {
+router.delete("/:id", ...superadminOnly, async (req, res) => {
   try {
     const conn = await pool.getConnection();
     try {

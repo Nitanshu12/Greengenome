@@ -40,8 +40,18 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  // Single source of truth for role checks — every page used to recompute
+  // its own `["admin","superadmin"].includes(user?.role)` locally; centralizing
+  // it here is what makes it possible to have "admin, but not delete" as a
+  // consistent rule instead of one that has to be re-applied by hand on every
+  // page's delete button.
+  const isSuperadmin = user?.role === "superadmin";
+  const isAdmin = isSuperadmin || user?.role === "admin";
+  const isRestrictedUser = user?.role === "user";
+  const canDelete = isSuperadmin;
+
   return (
-    <AuthCtx.Provider value={{ user, login, logout }}>
+    <AuthCtx.Provider value={{ user, login, logout, isSuperadmin, isAdmin, isRestrictedUser, canDelete }}>
       {children}
     </AuthCtx.Provider>
   );

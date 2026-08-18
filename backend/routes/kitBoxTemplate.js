@@ -4,11 +4,12 @@ const pool = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
+const superadminOnly = [requireLogin, requireRole("superadmin")];
 
 // GET /api/kit-box-template — full template, item name/brand fetched live via JOIN.
 // LEFT JOIN because a row can have no item_code yet (its Excel name had no
 // exact match in items) — it still comes back, using item_name_raw as the name.
-router.get("/", requireLogin, async (req, res) => {
+router.get("/", ...adminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT t.id, t.cube_no, t.box_no, t.item_code, t.qty, t.row_order,
@@ -79,8 +80,8 @@ router.put("/:id", ...adminOnly, async (req, res) => {
   }
 });
 
-// DELETE /api/kit-box-template/:id (admin)
-router.delete("/:id", ...adminOnly, async (req, res) => {
+// DELETE /api/kit-box-template/:id (superadmin only)
+router.delete("/:id", ...superadminOnly, async (req, res) => {
   try {
     const [result] = await pool.query("DELETE FROM kit_box_template WHERE id = ?", [req.params.id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: "Row not found" });

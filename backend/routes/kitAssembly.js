@@ -481,7 +481,7 @@ router.post("/create", requireRole("admin", "superadmin"), async (req, res) => {
 });
 
 // GET /api/kit-assembly/history
-router.get("/history", requireLogin, async (req, res) => {
+router.get("/history", requireLogin, requireRole("admin", "superadmin"), async (req, res) => {
   const conn = await pool.getConnection();
   try {
     // LEFT JOIN so the UI can tell whether an assembled kit already has an
@@ -506,7 +506,7 @@ router.get("/history", requireLogin, async (req, res) => {
 });
 
 // GET /api/kit-assembly/:kit_id/details
-router.get("/:kit_id/details", requireLogin, async (req, res) => {
+router.get("/:kit_id/details", requireLogin, requireRole("admin", "superadmin"), async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const [[kit]] = await conn.query(

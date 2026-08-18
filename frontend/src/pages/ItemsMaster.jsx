@@ -12,7 +12,7 @@ function docHref(url) {
   return url;
 }
 
-function DocsModal({ item, isAdmin, onClose, toast }) {
+function DocsModal({ item, isAdmin, canDelete, onClose, toast }) {
   const [docs, setDocs]           = useState([]);
   const [loading, setLoading]     = useState(true);
   const [name, setName]           = useState("");
@@ -119,7 +119,7 @@ function DocsModal({ item, isAdmin, onClose, toast }) {
                     ? "🔗"
                     : d.document_url?.toLowerCase().endsWith(".pdf") ? "📄" : "🖼"} {d.document_name}
                 </a>
-                {isAdmin && (
+                {canDelete && (
                   <button className="btn btn-danger btn-sm" onClick={() => handleDelete(d.id)}>Delete</button>
                 )}
               </div>
@@ -376,9 +376,8 @@ function ItemFormModal({ initial, nextCode, onSave, onClose, saving, categories 
 }
 
 export default function ItemsMaster() {
-  const { user } = useAuth();
+  const { isAdmin, canDelete } = useAuth();
   const { toast } = useToast();
-  const isAdmin = ["admin", "superadmin"].includes(user?.role);
 
   const [items, setItems] = useState([]);
   const [allItems, setAllItems] = useState([]);
@@ -630,7 +629,9 @@ export default function ItemsMaster() {
                         <div className="flex gap-2">
                           <button className="btn btn-ghost btn-sm" onClick={() => openEdit(item)}>Edit</button>
                           <button className="btn btn-ghost btn-sm" onClick={() => setDocsTarget(item)}>📄 Docs</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item)}>Delete</button>
+                          {canDelete && (
+                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(item)}>Delete</button>
+                          )}
                         </div>
                         {itemDocs[item.item_code]?.length > 0 && (
                           <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
@@ -700,6 +701,7 @@ export default function ItemsMaster() {
         <DocsModal
           item={docsTarget}
           isAdmin={isAdmin}
+          canDelete={canDelete}
           onClose={() => {
             const code = docsTarget.item_code;
             setDocsTarget(null);

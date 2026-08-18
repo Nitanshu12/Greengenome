@@ -3,9 +3,10 @@ const pool = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
+const superadminOnly = [requireLogin, requireRole("superadmin")];
 
 // GET /api/bom-disaster
-router.get("/", requireLogin, async (req, res) => {
+router.get("/", ...adminOnly, async (req, res) => {
   try {
     const { q = "" } = req.query;
     const params = [];
@@ -63,7 +64,7 @@ router.put("/:item_code", ...adminOnly, async (req, res) => {
 });
 
 // DELETE /api/bom-disaster/:item_code
-router.delete("/:item_code", ...adminOnly, async (req, res) => {
+router.delete("/:item_code", ...superadminOnly, async (req, res) => {
   try {
     const [result] = await pool.query("DELETE FROM bom_disaster WHERE item_code=?", [req.params.item_code]);
     if (result.affectedRows === 0) return res.status(404).json({ error: "BOM entry not found" });

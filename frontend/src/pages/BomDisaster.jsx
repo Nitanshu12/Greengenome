@@ -80,9 +80,8 @@ function BomFormModal({ initial, items, onSave, onClose, saving }) {
 }
 
 export default function BomDisaster() {
-  const { user } = useAuth();
+  const { isAdmin, canDelete } = useAuth();
   const { toast } = useToast();
-  const isAdmin = ["admin", "superadmin"].includes(user?.role);
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -224,7 +223,9 @@ export default function BomDisaster() {
                       <td>
                         <div className="flex gap-2">
                           <button className="btn btn-ghost btn-sm" onClick={() => openEdit(row)}>Edit</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(row)}>Delete</button>
+                          {canDelete && (
+                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(row)}>Delete</button>
+                          )}
                         </div>
                       </td>
                     )}

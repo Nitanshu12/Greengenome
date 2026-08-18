@@ -23,11 +23,16 @@ import CubeBoxTemplate from "./pages/CubeBoxTemplate";
 import Outward from "./pages/Outward";
 import InventoryTransactions from "./pages/InventoryTransactions";
 
-function RequireAuth({ children, adminOnly = false }) {
+function RequireAuth({ children, adminOnly = false, blockRestrictedUser = false }) {
   const { user } = useAuth();
   if (user === undefined) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}><div className="spinner" /></div>;
   if (!user) return <Navigate to="/login" replace />;
   if (adminOnly && !["admin", "superadmin"].includes(user.role)) return <Navigate to="/dashboard" replace />;
+  // Plain "user" role is scoped to Dashboard + Kits Information only — every
+  // other route redirects it back, matching the API-level lockout on the
+  // same pages (see backend route files) rather than relying on the sidebar
+  // hiding the link alone.
+  if (blockRestrictedUser && user.role === "user") return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -48,17 +53,17 @@ export default function App() {
       <Route element={<RequireAuth><Layout /></RequireAuth>}>
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="packages" element={<Packages />} />
-        <Route path="items-master" element={<ItemsMaster />} />
-        <Route path="vendor-list"   element={<VendorList />} />
-        <Route path="item-vendors"  element={<ItemVendors />} />
-        <Route path="bom-disaster"   element={<BomDisaster />} />
-        <Route path="stock-batches"  element={<StockBatches />} />
-        <Route path="create-kit"     element={<CreateKit />} />
-        <Route path="po-status"      element={<POStatus />} />
-        <Route path="sub-kits"          element={<SubKitGeneration />} />
-        <Route path="cube-box-template" element={<CubeBoxTemplate />} />
-        <Route path="outward"           element={<Outward />} />
-        <Route path="inventory-transactions" element={<InventoryTransactions />} />
+        <Route path="items-master" element={<RequireAuth blockRestrictedUser><ItemsMaster /></RequireAuth>} />
+        <Route path="vendor-list"   element={<RequireAuth blockRestrictedUser><VendorList /></RequireAuth>} />
+        <Route path="item-vendors"  element={<RequireAuth blockRestrictedUser><ItemVendors /></RequireAuth>} />
+        <Route path="bom-disaster"   element={<RequireAuth blockRestrictedUser><BomDisaster /></RequireAuth>} />
+        <Route path="stock-batches"  element={<RequireAuth blockRestrictedUser><StockBatches /></RequireAuth>} />
+        <Route path="create-kit"     element={<RequireAuth blockRestrictedUser><CreateKit /></RequireAuth>} />
+        <Route path="po-status"      element={<RequireAuth blockRestrictedUser><POStatus /></RequireAuth>} />
+        <Route path="sub-kits"          element={<RequireAuth blockRestrictedUser><SubKitGeneration /></RequireAuth>} />
+        <Route path="cube-box-template" element={<RequireAuth blockRestrictedUser><CubeBoxTemplate /></RequireAuth>} />
+        <Route path="outward"           element={<RequireAuth blockRestrictedUser><Outward /></RequireAuth>} />
+        <Route path="inventory-transactions" element={<RequireAuth blockRestrictedUser><InventoryTransactions /></RequireAuth>} />
         <Route path="admin/upload" element={<RequireAuth adminOnly><AdminUpload /></RequireAuth>} />
         <Route path="admin/users" element={<RequireAuth adminOnly><AdminUsers /></RequireAuth>} />
       </Route>

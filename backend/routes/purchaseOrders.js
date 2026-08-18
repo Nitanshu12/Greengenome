@@ -260,7 +260,7 @@ router.post("/", ...adminOnly, async (req, res) => {
 });
 
 // GET /api/purchase-orders  — list all POs
-router.get("/", requireLogin, async (req, res) => {
+router.get("/", ...adminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query(`
       SELECT po.id, po.po_number, po.vendor_code, v.business_name,
@@ -278,7 +278,7 @@ router.get("/", requireLogin, async (req, res) => {
 });
 
 // GET /api/purchase-orders/active-items  — map of item_code → PO info for all draft/sent POs
-router.get("/active-items", requireLogin, async (req, res) => {
+router.get("/active-items", ...adminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query(`
       SELECT poi.item_code, po.id AS po_id, po.po_number, po.status
@@ -300,7 +300,7 @@ router.get("/active-items", requireLogin, async (req, res) => {
 });
 
 // GET /api/purchase-orders/for-item/:item_code  — active POs containing a specific item
-router.get("/for-item/:item_code", requireLogin, async (req, res) => {
+router.get("/for-item/:item_code", ...adminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query(`
       SELECT po.id, po.po_number, po.vendor_code, v.business_name, po.status,
@@ -318,7 +318,7 @@ router.get("/for-item/:item_code", requireLogin, async (req, res) => {
 });
 
 // GET /api/purchase-orders/sent  — all sent POs with their items (for Receipt dropdown)
-router.get("/sent", requireLogin, async (req, res) => {
+router.get("/sent", ...adminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query(`
       SELECT po.id, po.po_number, po.vendor_code, v.business_name, po.status,
@@ -350,7 +350,7 @@ router.get("/sent", requireLogin, async (req, res) => {
 });
 
 // GET /api/purchase-orders/:id/items-status  — ordered vs received per item for a PO
-router.get("/:id/items-status", requireLogin, async (req, res) => {
+router.get("/:id/items-status", ...adminOnly, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
@@ -392,7 +392,7 @@ router.get("/:id/items-status", requireLogin, async (req, res) => {
 });
 
 // GET /api/purchase-orders/:id  — single PO with items
-router.get("/:id", requireLogin, async (req, res) => {
+router.get("/:id", ...adminOnly, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
@@ -433,7 +433,7 @@ router.patch("/:id/status", ...adminOnly, async (req, res) => {
 });
 
 // GET /api/purchase-orders/:id/download  — generate and stream DOCX
-router.get("/:id/download", requireLogin, async (req, res) => {
+router.get("/:id/download", ...adminOnly, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });

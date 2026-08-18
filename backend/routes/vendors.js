@@ -3,9 +3,10 @@ const pool = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
+const superadminOnly = [requireLogin, requireRole("superadmin")];
 
 // GET /api/vendors — list all vendors
-router.get("/", requireLogin, async (req, res) => {
+router.get("/", ...adminOnly, async (req, res) => {
   try {
     const { q = "" } = req.query;
     const params = [];
@@ -75,7 +76,7 @@ router.put("/:id", ...adminOnly, async (req, res) => {
 });
 
 // DELETE /api/vendors/:id — delete vendor (cascades to item_vendors)
-router.delete("/:id", ...adminOnly, async (req, res) => {
+router.delete("/:id", ...superadminOnly, async (req, res) => {
   try {
     const [result] = await pool.query("DELETE FROM vendors WHERE id = ?", [req.params.id]);
     if (result.affectedRows === 0) return res.status(404).json({ error: "Vendor not found" });

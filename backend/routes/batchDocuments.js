@@ -6,6 +6,7 @@ const pool   = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
+const superadminOnly = [requireLogin, requireRole("superadmin")];
 
 const docStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -29,7 +30,7 @@ const uploadMiddleware = multer({
 });
 
 // GET /api/batch-documents/:batch_id
-router.get("/:batch_id", requireLogin, async (req, res) => {
+router.get("/:batch_id", ...adminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query(
       "SELECT id, document_name, document_url, created_at FROM stock_batch_documents WHERE batch_id=? ORDER BY id ASC",
@@ -79,8 +80,8 @@ router.post("/upload", ...adminOnly, uploadMiddleware.single("file"), async (req
   }
 });
 
-// DELETE /api/batch-documents/:id
-router.delete("/:id", ...adminOnly, async (req, res) => {
+// DELETE /api/batch-documents/:id (superadmin only)
+router.delete("/:id", ...superadminOnly, async (req, res) => {
   try {
     const [[doc]] = await pool.query(
       "SELECT id, document_url FROM stock_batch_documents WHERE id=?", [req.params.id]

@@ -6,6 +6,7 @@ const { summarizeKitData } = require("../utils/kitExcel");
 const { parseJsonColumn } = require("../utils/jsonColumn");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
+const superadminOnly = [requireLogin, requireRole("superadmin")];
 
 // Builds the draft rows for a fully-assembled kit by merging kit_box_template
 // (cube/box placement) with kit_allocations (the real batches FEFO-issued for
@@ -241,7 +242,7 @@ async function refreshFlaggedCount(txnId) {
 }
 
 // GET /api/inventory-transactions
-router.get("/", requireLogin, async (req, res) => {
+router.get("/", ...adminOnly, async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT t.id, t.kit_id, t.kit_name, t.qty_kits, t.status, t.flagged_count,
@@ -259,7 +260,7 @@ router.get("/", requireLogin, async (req, res) => {
 });
 
 // GET /api/inventory-transactions/:id
-router.get("/:id", requireLogin, async (req, res) => {
+router.get("/:id", ...adminOnly, async (req, res) => {
   try {
     const [[txn]] = await pool.query(`SELECT * FROM inventory_transactions WHERE id = ?`, [req.params.id]);
     if (!txn) return res.status(404).json({ error: "Transaction not found" });
@@ -367,7 +368,7 @@ router.put("/:id/items/:item_id", ...adminOnly, async (req, res) => {
 });
 
 // DELETE /api/inventory-transactions/:id/items/:item_id  (admin)
-router.delete("/:id/items/:item_id", ...adminOnly, async (req, res) => {
+router.delete("/:id/items/:item_id", ...superadminOnly, async (req, res) => {
   try {
     const [[txn]] = await pool.query(`SELECT status FROM inventory_transactions WHERE id = ?`, [req.params.id]);
     if (!txn) return res.status(404).json({ error: "Transaction not found" });

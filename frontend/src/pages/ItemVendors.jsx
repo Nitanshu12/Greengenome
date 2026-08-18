@@ -147,9 +147,8 @@ function LinkModal({ initial, items, vendors, onSave, onClose, saving }) {
 
 // ── Main page ─────────────────────────────────────────────────────
 export default function ItemVendors() {
-  const { user }  = useAuth();
+  const { isAdmin, canDelete } = useAuth();
   const { toast } = useToast();
-  const isAdmin   = ["admin", "superadmin"].includes(user?.role);
 
   const [items,    setItems]    = useState([]);
   const [loading,  setLoading]  = useState(true);
@@ -370,10 +369,12 @@ export default function ItemVendors() {
                                       onClick={() => openEdit(v, item.item_code)}>
                                       Edit
                                     </button>
-                                    <button className="btn btn-danger btn-sm"
-                                      onClick={() => handleDelete(item.item_code, v.vendor_code, v.business_name)}>
-                                      Remove
-                                    </button>
+                                    {canDelete && (
+                                      <button className="btn btn-danger btn-sm"
+                                        onClick={() => handleDelete(item.item_code, v.vendor_code, v.business_name)}>
+                                        Remove
+                                      </button>
+                                    )}
                                   </div>
                                 </td>
                               )}

@@ -89,9 +89,8 @@ function VendorFormModal({ initial, onSave, onClose, saving }) {
 }
 
 export default function VendorList() {
-  const { user } = useAuth();
+  const { isAdmin, canDelete } = useAuth();
   const { toast } = useToast();
-  const isAdmin = ["admin", "superadmin"].includes(user?.role);
 
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -250,7 +249,9 @@ export default function VendorList() {
                       <td>
                         <div className="flex gap-2">
                           <button className="btn btn-ghost btn-sm" onClick={() => openEdit(row)}>Edit</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(row)}>Delete</button>
+                          {canDelete && (
+                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(row)}>Delete</button>
+                          )}
                         </div>
                       </td>
                     )}

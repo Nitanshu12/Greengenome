@@ -98,9 +98,8 @@ function SubKitFormModal({ initial, nextCode, rawItems, onSave, onClose, saving 
 }
 
 export default function SubKitGeneration() {
-  const { user } = useAuth();
+  const { isAdmin, canDelete } = useAuth();
   const { toast } = useToast();
-  const isAdmin = ["admin", "superadmin"].includes(user?.role);
 
   const [subKits, setSubKits] = useState([]);
   const [rawItems, setRawItems] = useState([]);
@@ -245,7 +244,9 @@ export default function SubKitGeneration() {
                 {isAdmin && (
                   <div className="flex gap-2">
                     <button className="btn btn-ghost btn-sm" onClick={() => openEdit(sk)}>Edit</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDelete(sk)}>Delete</button>
+                    {canDelete && (
+                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(sk)}>Delete</button>
+                    )}
                   </div>
                 )}
               </div>

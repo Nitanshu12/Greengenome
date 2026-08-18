@@ -11,7 +11,7 @@ function docHref(url) {
   return url;
 }
 
-function BatchDocsModal({ batch, isAdmin, onClose, toast }) {
+function BatchDocsModal({ batch, isAdmin, canDelete, onClose, toast }) {
   const [docs, setDocs]           = useState([]);
   const [loading, setLoading]     = useState(true);
   const [name, setName]           = useState("");
@@ -118,7 +118,7 @@ function BatchDocsModal({ batch, isAdmin, onClose, toast }) {
                     ? "🔗"
                     : d.document_url?.toLowerCase().endsWith(".pdf") ? "📄" : "🖼"} {d.document_name}
                 </a>
-                {isAdmin && (
+                {canDelete && (
                   <button className="btn btn-danger btn-sm" onClick={() => handleDelete(d.id)}>Delete</button>
                 )}
               </div>
@@ -738,9 +738,8 @@ function ReceivePOModal({ sentPOs, shortPOItems, onClose, onSuccess, toast }) {
 
 // ── Main Page ─────────────────────────────────────────────────────
 export default function StockBatches() {
-  const { user } = useAuth();
+  const { isAdmin, canDelete } = useAuth();
   const { toast } = useToast();
-  const isAdmin = ["admin", "superadmin"].includes(user?.role);
 
   const [batches, setBatches] = useState([]);
   const [items, setItems] = useState([]);
@@ -1274,9 +1273,11 @@ export default function StockBatches() {
                               <button className="btn btn-ghost btn-sm" onClick={() => setDocsTarget(b)}>
                                 📄 Docs
                               </button>
-                              <button className="btn btn-danger btn-sm" onClick={() => handleDelete(b)}>
-                                Delete
-                              </button>
+                              {canDelete && (
+                                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(b)}>
+                                  Delete
+                                </button>
+                              )}
                             </div>
                             {batchDocs[b.batch_id]?.length > 0 && (
                               <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
@@ -1363,6 +1364,7 @@ export default function StockBatches() {
         <BatchDocsModal
           batch={docsTarget}
           isAdmin={isAdmin}
+          canDelete={canDelete}
           onClose={() => {
             const id = docsTarget.batch_id;
             setDocsTarget(null);

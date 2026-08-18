@@ -101,7 +101,7 @@ function RowModal({ initial, onSave, onClose, saving }) {
   );
 }
 
-function TransactionCard({ txn, isOpen, detail, onToggle, onReload, isAdmin, toast }) {
+function TransactionCard({ txn, isOpen, detail, onToggle, onReload, isAdmin, canDelete, toast }) {
   const [editTarget, setEditTarget] = useState(null);
   const [saving, setSaving] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
@@ -284,7 +284,9 @@ function TransactionCard({ txn, isOpen, detail, onToggle, onReload, isAdmin, toa
                           <td>
                             <div className="flex gap-2" style={{ flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>
                               <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(it)}>Edit</button>
-                              <button className="btn btn-danger btn-sm" onClick={() => handleDelete(it)}>Delete</button>
+                              {canDelete && (
+                                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(it)}>Delete</button>
+                              )}
                             </div>
                           </td>
                         )}
@@ -379,9 +381,8 @@ function TransactionCard({ txn, isOpen, detail, onToggle, onReload, isAdmin, toa
 }
 
 export default function InventoryTransactions() {
-  const { user } = useAuth();
+  const { isAdmin, canDelete } = useAuth();
   const { toast } = useToast();
-  const isAdmin = ["admin", "superadmin"].includes(user?.role);
 
   const [txns, setTxns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -447,6 +448,7 @@ export default function InventoryTransactions() {
               onToggle={() => handleToggle(t.id)}
               onReload={() => handleReload(t.id)}
               isAdmin={isAdmin}
+              canDelete={canDelete}
               toast={toast}
             />
           ))}

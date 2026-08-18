@@ -4,9 +4,10 @@ const pool = require("../db/postgres");
 const { requireLogin, requireRole } = require("../middleware/auth");
 
 const adminOnly = [requireLogin, requireRole("admin", "superadmin")];
+const superadminOnly = [requireLogin, requireRole("superadmin")];
 
 // GET /api/sub-kits — list all sub-kits with their recipe (component items)
-router.get("/", requireLogin, async (req, res) => {
+router.get("/", ...adminOnly, async (req, res) => {
   try {
     const [subKits] = await pool.query(
       `SELECT item_code, name, unit, is_active FROM items WHERE is_subkit = 1 ORDER BY name`
@@ -175,7 +176,7 @@ router.put("/:item_code", ...adminOnly, async (req, res) => {
 });
 
 // DELETE /api/sub-kits/:item_code
-router.delete("/:item_code", ...adminOnly, async (req, res) => {
+router.delete("/:item_code", ...superadminOnly, async (req, res) => {
   try {
     const [[existing]] = await pool.query(
       "SELECT name FROM items WHERE item_code = ? AND is_subkit = 1",
